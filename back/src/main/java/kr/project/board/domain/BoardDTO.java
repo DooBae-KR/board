@@ -1,4 +1,4 @@
-package dto;
+package kr.project.board.domain;
 
 import lombok.Data;
 

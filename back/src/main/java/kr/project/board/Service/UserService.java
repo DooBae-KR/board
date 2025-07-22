@@ -13,7 +13,7 @@ public class UserService {
     private final UserRepositroy userRepositroy;
 
     public void regist(UserDTO dto){
-
+            userRepositroy.regist(dto);
     }
     
 }
