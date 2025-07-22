@@ -32,13 +32,13 @@ logs
 
 
 **/node_modules/.cache/
-frontend/node_modules/
+front/node_modules/
 
 **/.eslintcache
 *.pack
 *.lock
 *.bin
-backend/bin/
+back/bin/
 *.old
 
 bower_components
