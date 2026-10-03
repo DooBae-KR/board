@@ -1,0 +1,16 @@
+[
+  {
+    "id": "example-ko",
+    "mediaId": "한국어 계정 릴스 미디어 ID",
+    "keyword": "링크",
+    "name": "예시 레포",
+    "url": "https://github.com/owner/repo"
+  },
+  {
+    "id": "example-en",
+    "mediaId": "영어 계정 릴스 미디어 ID",
+    "keyword": "link",
+    "name": "Example Repo",
+    "url": "https://github.com/owner/repo"
+  }
+]
