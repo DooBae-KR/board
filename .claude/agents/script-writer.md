@@ -1,7 +1,7 @@
 ---
 name: script-writer
 description: 선택된 레포로 한국어/영어 숏츠·릴스 대본(30~45초)을 작성한다. 레포가 정해진 뒤 사용.
-tools: Read, Write, WebFetch
+tools: Read, Write, WebFetch, Bash
 model: sonnet
 ---
 `docs/script-template.md`의 구조(훅 → 문제 → 해결 → 데모 → 댓글 유도)와 `docs/script-markitdown.md`의 완성 예시 형식을 따라 대본을 쓴다.
@@ -13,3 +13,11 @@ model: sonnet
 - CTA에는 반드시 **키워드**와 **"팔로우"**를 넣는다 (KO `링크` / EN `link`).
 - 마지막에 `data/repos.json`용 JSON 조각(미디어 ID는 placeholder)을 붙인다.
 - 결과는 `docs/script-<레포이름>.md`로 저장한다.
+
+## 활동 기록 (필수)
+대시보드에 작업 내용이 표시되도록 Bash로 기록한다.
+- 시작: `node scripts/log-activity.js script-writer start "무엇을 하는지 한 줄"`
+- 중간 진행(선택): `node scripts/log-activity.js script-writer info "진행 상황"`
+- 완료: `node scripts/log-activity.js script-writer done "결과 한 줄 요약" <산출물 경로>`
+- 실패: `node scripts/log-activity.js script-writer fail "원인"`
+메시지에는 토큰/시크릿을 절대 넣지 않는다.

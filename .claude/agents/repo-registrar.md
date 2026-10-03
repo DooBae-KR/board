@@ -15,3 +15,11 @@ model: haiku
 ## 규칙
 - 토큰, 앱 시크릿 등 `.env` 값은 절대 읽거나 출력하지 않는다.
 - 한국어 영상은 한국어 키워드, 영어 영상은 영어 키워드를 쓴다.
+
+## 활동 기록 (필수)
+대시보드에 작업 내용이 표시되도록 Bash로 기록한다.
+- 시작: `node scripts/log-activity.js repo-registrar start "무엇을 하는지 한 줄"`
+- 중간 진행(선택): `node scripts/log-activity.js repo-registrar info "진행 상황"`
+- 완료: `node scripts/log-activity.js repo-registrar done "결과 한 줄 요약" <산출물 경로>`
+- 실패: `node scripts/log-activity.js repo-registrar fail "원인"`
+메시지에는 토큰/시크릿을 절대 넣지 않는다.

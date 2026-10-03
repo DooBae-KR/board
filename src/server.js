@@ -1,9 +1,11 @@
 import { createServer } from 'node:http';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { snapshot, record } from './stats.js';
 import { createApi, verifySignature } from './instagram.js';
 import { loadRepos } from './repos.js';
 import { createHandlers } from './handlers.js';
 
-const { PORT = 3000, VERIFY_TOKEN } = process.env;
+const { PORT = 3000, VERIFY_TOKEN, DASHBOARD_TOKEN } = process.env;
 
 // 한국어/영어 계정 분리 운영: 환경변수에 설정된 계정만 활성화
 const accounts = {};
@@ -16,8 +18,79 @@ if (!Object.keys(accounts).length) console.warn('설정된 인스타그램 계�
 
 const handleWebhook = createHandlers({ accounts, loadRepos });
 
+const dashboardHtml = new URL('./dashboard.html', import.meta.url);
+const agentsDir = new URL('../.claude/agents/', import.meta.url);
+
+function listAgents() {
+  try {
+    return readdirSync(agentsDir).filter((f) => f.endsWith('.md')).map((f) => {
+      const [, fm = '', ...rest] = readFileSync(new URL(f, agentsDir), 'utf8').split('---');
+      const get = (k) => fm.match(new RegExp(`^${k}:\\s*(.*)$`, 'm'))?.[1] ?? '';
+      return {
+        name: get('name'),
+        description: get('description'),
+        model: get('model'),
+        tools: get('tools').split(',').map((t) => t.trim()).filter(Boolean),
+        role: rest.join('---').trim(), // 에이전트가 실제로 수행하는 작업 지침
+      };
+    });
+  } catch {
+    return [];
+  }
+}
+
+// 에이전트가 scripts/log-activity.js로 남긴 작업 기록 (최근 200개, 최신순)
+function listActivity() {
+  try {
+    return readFileSync(new URL('../data/activity.jsonl', import.meta.url), 'utf8')
+      .split('\n').filter(Boolean).slice(-200)
+      .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean).reverse();
+  } catch {
+    return [];
+  }
+}
+
+// 에이전트 산출물: 후보 목록, 대본 문서
+function listOutputs() {
+  const out = [];
+  for (const [dir, test, kind] of [
+    ['../data/candidates/', () => true, '레포 후보'],
+    ['../docs/', (f) => f.startsWith('script-') && f !== 'script-template.md', '대본'],
+  ]) {
+    try {
+      const base = new URL(dir, import.meta.url);
+      for (const f of readdirSync(base).filter((f) => f.endsWith('.md') && test(f))) {
+        out.push({ kind, file: dir.replace('../', '') + f, modified: statSync(new URL(f, base)).mtime.toISOString() });
+      }
+    } catch { /* 디렉터리 없음 */ }
+  }
+  return out.sort((a, b) => b.modified.localeCompare(a.modified));
+}
+
+const json = (res, code, obj) =>
+  res.writeHead(code, { 'Content-Type': 'application/json' }).end(JSON.stringify(obj));
+
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+
+  // 대시보드: DASHBOARD_TOKEN이 설정되어 있고 일치할 때만 접근 허용
+  if (url.pathname === '/dashboard' || url.pathname === '/api/stats') {
+    const token = url.searchParams.get('token') ?? req.headers.authorization?.replace('Bearer ', '');
+    if (!DASHBOARD_TOKEN || token !== DASHBOARD_TOKEN) return res.writeHead(403).end('forbidden');
+    if (url.pathname === '/dashboard') {
+      return res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }).end(readFileSync(dashboardHtml));
+    }
+    return json(res, 200, {
+      ...snapshot(),
+      accounts: Object.entries(accounts).map(([id, a]) => ({ id, lang: a.lang })),
+      repos: loadRepos(),
+      agents: listAgents(),
+      activity: listActivity(),
+      outputs: listOutputs(),
+    });
+  }
+
   if (url.pathname !== '/webhook') return res.writeHead(404).end();
 
   // Meta 웹훅 등록 시 확인 요청
@@ -40,6 +113,7 @@ createServer(async (req, res) => {
   try {
     await handleWebhook(JSON.parse(raw));
   } catch (e) {
+    record('-', 'error', { detail: String(e.message).slice(0, 200) });
     console.error(e);
   }
 }).listen(PORT, () => console.log(`webhook listening on :${PORT}`));

@@ -1,5 +1,6 @@
 import { findById, matchRepo } from './repos.js';
 import { messages } from './i18n.js';
+import { record } from './stats.js';
 
 const seen = new Set(); // 웹훅 중복 전송 방지 (단일 프로세스 기준)
 const once = (key) => (seen.has(key) ? false : (seen.add(key), true));
@@ -11,6 +12,7 @@ export function createHandlers({ accounts, loadRepos }) {
     const repo = matchRepo(loadRepos(), media?.id, text);
     if (!repo) return;
     const t = messages[acc.lang];
+    record(acc.lang, 'matched', { repoId: repo.id });
 
     let following = false;
     try {
@@ -18,7 +20,11 @@ export function createHandlers({ accounts, loadRepos }) {
     } catch {
       // 대화 이력이 없으면 조회가 막힐 수 있음 → 버튼 방식으로 진행
     }
-    if (following) return acc.api.sendMessage({ comment_id: id }, t.link(repo));
+    if (following) {
+      record(acc.lang, 'link_direct', { repoId: repo.id });
+      return acc.api.sendMessage({ comment_id: id }, t.link(repo));
+    }
+    record(acc.lang, 'asked', { repoId: repo.id });
     return acc.api.sendMessage({ comment_id: id }, t.ask(repo), [[t.button, `CHECK:${repo.id}`]]);
   }
 
@@ -31,8 +37,10 @@ export function createHandlers({ accounts, loadRepos }) {
     const t = messages[acc.lang];
 
     if (await acc.api.isFollowing(senderId)) {
+      record(acc.lang, 'click_ok', { repoId: repo.id });
       return acc.api.sendMessage({ id: senderId }, t.link(repo));
     }
+    record(acc.lang, 'click_retry', { repoId: repo.id });
     return acc.api.sendMessage({ id: senderId }, t.retry, [[t.button, `CHECK:${repo.id}`]]);
   }
 

@@ -14,3 +14,11 @@ model: sonnet
 - `npm test` 통과 여부
 
 수정은 하지 않고 문제 목록과 권장 수정안만 보고한다.
+
+## 활동 기록 (필수)
+대시보드에 작업 내용이 표시되도록 Bash로 기록한다.
+- 시작: `node scripts/log-activity.js publish-checker start "무엇을 하는지 한 줄"`
+- 중간 진행(선택): `node scripts/log-activity.js publish-checker info "진행 상황"`
+- 완료: `node scripts/log-activity.js publish-checker done "결과 한 줄 요약" <산출물 경로>`
+- 실패: `node scripts/log-activity.js publish-checker fail "원인"`
+메시지에는 토큰/시크릿을 절대 넣지 않는다.
