@@ -28,10 +28,34 @@ a{color:inherit}
 details{margin-top:6px}summary{cursor:pointer;color:var(--mute);font-size:13px}
 pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;background:var(--bg);padding:8px;border-radius:8px;margin:6px 0 0}
 .chip{font-size:11px;color:var(--mute);border:1px solid var(--line);border-radius:6px;padding:0 6px;margin-right:4px}
+
+.hero{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.hero img{height:96px;image-rendering:pixelated}
+.bubble{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;max-width:560px}
+.bubble:before{content:"";position:absolute;left:-7px;top:50%;width:12px;height:12px;background:var(--card);border-left:1px solid var(--line);border-bottom:1px solid var(--line);transform:translateY(-50%) rotate(45deg)}
+.bubble b{display:block}.bubble span{color:var(--mute);font-size:13px}
+.acard{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}.acard:last-child{border:0}
+.sprite{flex:0 0 120px;height:120px;display:flex;align-items:flex-end;justify-content:center;border-radius:12px;position:relative}
+.sprite img{max-width:112px;max-height:112px;image-rendering:pixelated}
+.sprite.working{background:linear-gradient(180deg,rgba(217,119,6,.12),transparent)}.sprite.working img{animation:bob .9s ease-in-out infinite}
+.sprite.done{background:linear-gradient(180deg,rgba(22,163,74,.12),transparent)}.sprite.done img{animation:hop .6s ease-out 2}
+.sprite.fail{background:linear-gradient(180deg,rgba(220,38,38,.12),transparent)}.sprite.fail img{animation:shake .4s 3}
+.sprite.rest{background:linear-gradient(180deg,rgba(107,114,128,.10),transparent)}.sprite.rest img{border-radius:10px}
+.zzz{position:absolute;top:6px;right:8px;font-weight:700;color:var(--mute);animation:float 2.4s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-4px)}}@keyframes hop{40%{transform:translateY(-12px)}}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}@keyframes float{50%{transform:translateY(-6px);opacity:.4}}
+.abody{flex:1;min-width:0}.state{display:inline-block;padding:1px 10px;border-radius:99px;font-size:12px;font-weight:700;margin-left:6px}
+.state.working{background:rgba(217,119,6,.18);color:var(--en)}.state.done{background:rgba(22,163,74,.18);color:var(--ok)}
+.state.fail{background:rgba(220,38,38,.18);color:var(--bad)}.state.rest{background:rgba(107,114,128,.18);color:var(--mute)}
+.steps{list-style:none;margin:8px 0 0;padding:0;font-size:13px}.steps li{padding:2px 0 2px 18px;position:relative;color:var(--mute)}
+.steps li:before{content:"○";position:absolute;left:0}.steps li.cur{color:var(--fg);font-weight:600}.steps li.cur:before{content:"●";color:var(--en);animation:p 1.2s infinite}
+.steps li.ok:before{content:"✔";color:var(--ok)}.steps li.bad:before{content:"✖";color:var(--bad)}
+@media(max-width:480px){.acard{flex-direction:column}.sprite{flex-basis:auto;width:100%}}
 </style>
 </head>
 <body>
 <main>
+<div class="hero"><img id="mascot" src="/assets/char/sit.png" alt=""><div class="bubble"><b id="hero-title">불러오는 중…</b><span id="hero-sub"></span></div></div>
 <h1>📦 Repo DM 대시보드</h1>
 <div class="sub" id="meta">불러오는 중…</div>
 
@@ -87,16 +111,59 @@ function render(d) {
 
   const STATE = { start: ['running','작업 중'], info: ['running','작업 중'], done: ['done','완료'], fail: ['fail','실패'] };
   const ago = t => { const m = Math.round((Date.now() - new Date(t)) / 60000); return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.round(m/60) + '시간 전' : Math.round(m/1440) + '일 전'; };
-  document.getElementById('agents').innerHTML = d.agents.length ? d.agents.map(a => {
+
+  // 작업자별 "일하는 모습" — 어떤 종류의 일을 하는지
+  const WORK = {
+    'repo-scout':      { sprite: 'book',   label: '자료 조사 중' },
+    'script-writer':   { sprite: 'laptop', label: '대본 작성 중' },
+    'repo-registrar':  { sprite: 'phone',  label: '등록·검증 중' },
+    'publish-checker': { sprite: 'think',  label: '업로드 전 점검 중' },
+  };
+  const REST_AFTER = 10 * 60000, STALL_AFTER = 60 * 60000;
+
+  // 상태 판정: working(작업 중) / done(방금 완료) / fail / rest(휴식 중)
+  function stateOf(last) {
+    if (!last) return 'rest';
+    const age = Date.now() - new Date(last.at);
+    if (last.status === 'start' || last.status === 'info') return age > STALL_AFTER ? 'stalled' : 'working';
+    if (last.status === 'fail') return 'fail';
+    return age > REST_AFTER ? 'rest' : 'done';
+  }
+
+  let working = 0, resting = 0;
+  const cards = d.agents.map(a => {
     const mine = d.activity.filter(x => x.agent === a.name), last = mine[0];
-    const [cls, label] = last ? STATE[last.status] : ['', '대기 중'];
-    return `<div class="agent"><span class="dot ${cls}"></span><b>${esc(a.name)}</b> <span class="tag">${esc(a.model)}</span> <b>${label}</b>
-      ${last ? `<span style="color:var(--mute)"> · ${ago(last.at)}</span>` : ''}
-      <small>${esc(a.description)}</small>
-      ${last ? `<small>▶ ${esc(last.message)}</small>` : '<small>아직 기록된 작업이 없습니다</small>'}
-      <div>${a.tools.map(t => `<span class="chip">${esc(t)}</span>`).join('')}<span class="chip">기록 ${mine.length}건</span></div>
-      <details><summary>수행하는 작업 지침 보기</summary><pre>${esc(a.role)}</pre></details></div>`;
-  }).join('') : '<span style="color:var(--mute)">.claude/agents 없음</span>';
+    const st = stateOf(last), w = WORK[a.name] || { sprite: 'laptop', label: '작업 중' };
+    // 마지막 실행(start~현재)의 단계들
+    const run = []; for (const x of mine) { run.unshift(x); if (x.status === 'start') break; }
+    let sprite, cls, badge;
+    if (st === 'working') { sprite = w.sprite; cls = 'working'; badge = w.label; working++; }
+    else if (st === 'stalled') { sprite = 'think'; cls = 'fail'; badge = '응답 없음? (60분↑ 기록 없음)'; working++; }
+    else if (st === 'done') { sprite = 'happy'; cls = 'done'; badge = '방금 완료!'; resting++; }
+    else if (st === 'fail') { sprite = 'flustered'; cls = 'fail'; badge = '문제가 생겼어요'; resting++; }
+    else { sprite = 'sleep'; cls = 'rest'; badge = '휴식 중'; resting++; }
+    const started = run.find(x => x.status === 'start');
+    const elapsed = st === 'working' && started ? ` · ${ago(started.at).replace(' 전','')} 째 작업 중` : '';
+    const steps = run.map((x, i) => {
+      const isLast = i === run.length - 1;
+      const k = x.status === 'done' ? 'ok' : x.status === 'fail' ? 'bad' : (isLast && st === 'working' ? 'cur' : 'ok');
+      return `<li class="${k}">${esc(x.message)} <span style="color:var(--mute);font-weight:400">· ${new Date(x.at).toLocaleTimeString()}</span></li>`;
+    }).join('');
+    return `<div class="acard"><div class="sprite ${cls}"><img src="/assets/char/${sprite}.png" alt="">${st === 'rest' ? '<span class="zzz">Zzz</span>' : ''}</div>
+      <div class="abody"><b>${esc(a.name)}</b> <span class="tag">${esc(a.model)}</span><span class="state ${cls}">${badge}</span><span style="color:var(--mute)">${elapsed}${last ? ' · 마지막 활동 ' + ago(last.at) : ''}</span>
+      <small style="display:block;color:var(--mute)">${esc(a.description)}</small>
+      ${steps ? `<ul class="steps">${steps}</ul>` : '<small style="display:block;color:var(--mute);margin-top:6px">아직 기록된 작업이 없어요. 호출되면 여기에서 일하는 모습을 볼 수 있어요.</small>'}
+      <div style="margin-top:6px">${a.tools.map(t => `<span class="chip">${esc(t)}</span>`).join('')}<span class="chip">기록 ${mine.length}건</span></div>
+      <details><summary>수행하는 작업 지침 보기</summary><pre>${esc(a.role)}</pre></details></div></div>`;
+  });
+  document.getElementById('agents').innerHTML = cards.length ? cards.join('') : '<span style="color:var(--mute)">.claude/agents 없음</span>';
+
+  // 상단 마스코트: 전체 상태 요약
+  const failed = d.agents.some(a => stateOf(d.activity.find(x => x.agent === a.name)) === 'fail');
+  const [mascot, title] = working ? ['cando', `지금 ${working}명이 일하고 있어요!`] : failed ? ['flustered', '문제가 생긴 작업이 있어요'] : ['sit', '지금은 모두 쉬는 중이에요'];
+  document.getElementById('mascot').src = `/assets/char/${mascot}.png`;
+  document.getElementById('hero-title').textContent = title;
+  document.getElementById('hero-sub').textContent = `작업 중 ${working} · 휴식 중 ${resting} · 댓글 매칭 ${sum(c,'matched')}건 · 링크 발송 ${sent}건`;
 
   document.getElementById('activity').innerHTML = d.activity.length
     ? `<table><tr><th>시간</th><th>작업자</th><th>상태</th><th>내용</th></tr>` + d.activity.slice(0, 30).map(x => {

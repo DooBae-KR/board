@@ -94,6 +94,17 @@ createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname === '/healthz') return res.writeHead(200).end('ok');
 
+  // 캐릭터 스프라이트 (화이트리스트된 파일명만)
+  const asset = url.pathname.match(/^\/assets\/char\/([a-z]+)\.png$/);
+  if (asset) {
+    try {
+      const png = readFileSync(new URL(`./assets/char/${asset[1]}.png`, import.meta.url));
+      return res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' }).end(png);
+    } catch {
+      return res.writeHead(404).end();
+    }
+  }
+
   // 대시보드: DASHBOARD_TOKEN이 설정되어 있고 일치할 때만 접근 허용
   if (url.pathname === '/dashboard' || url.pathname === '/api/stats') {
     const token = url.searchParams.get('token') ?? req.headers.authorization?.replace('Bearer ', '');

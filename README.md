@@ -37,3 +37,14 @@
 - **Docker:** `docker compose up -d --build` (`.env` 필요, 토큰은 `bot-data` 볼륨에 보존)
 - **Render:** `render.yaml` Blueprint로 생성 → 환경변수 입력 → 1GB 디스크가 `/data`에 마운트됨
 - 헬스체크: `GET /healthz`. 배포 후 웹훅 콜백 URL을 `https://<도메인>/webhook`으로 Meta 앱에 등록하세요.
+
+## 캐릭터로 보는 작업 상태
+대시보드의 작업자(에이전트) 카드는 캐릭터 스프라이트(`src/assets/char/`)로 상태를 보여줍니다.
+
+| 상태 | 판정 | 모습 |
+|---|---|---|
+| 작업 중 | 마지막 기록이 `start`/`info` | 작업자별로 다름: repo-scout=책 읽기(자료 조사), script-writer=노트북(대본 작성), repo-registrar=폰(등록·검증), publish-checker=고민(점검). 진행 단계 목록과 경과 시간 표시 |
+| 방금 완료 | `done` 후 10분 이내 | 웃는 얼굴 |
+| 문제 발생 | 마지막 기록이 `fail` | 당황한 얼굴 |
+| 응답 없음 | 작업 중인데 60분 넘게 기록 없음 | 고민하는 얼굴 (멈춘 작업 감지) |
+| 휴식 중 | 기록 없음 또는 완료 후 10분 경과 | 잠자는 모습 + Zzz |
