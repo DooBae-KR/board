@@ -79,6 +79,8 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const sum = (c, k) => Object.values(c).reduce((a, x) => a + (x[k] || 0), 0);
 const langTag = l => `<span class="tag ${l}">${l === 'ko' ? '한국어' : l === 'en' ? 'English' : l}</span>`;
 
+const ago = t => { const m = Math.round((Date.now() - new Date(t)) / 60000); return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.round(m/60) + '시간 전' : Math.round(m/1440) + '일 전'; };
+
 async function load() {
   try {
     const r = await fetch('/api/stats', { headers: { Authorization: 'Bearer ' + token } });
@@ -91,6 +93,12 @@ function render(d) {
   const c = d.counters, sent = sum(c,'link_direct') + sum(c,'click_ok');
   document.getElementById('meta').textContent =
     `서버 시작 ${new Date(d.startedAt).toLocaleString()} · 연결 계정 ${d.accounts.length}개 (${d.accounts.map(a=>a.lang).join(', ') || '없음'})`;
+  if (d.sync?.enabled) {
+    const sy = d.sync;
+    document.getElementById('meta').innerHTML += sy.ok === false
+      ? ` · 저장소 동기화 <span class="bad">실패: ${esc(sy.error)}</span>`
+      : sy.ok ? ` · 저장소 동기화 <span class="ok">정상</span> (${ago(sy.lastCheckedAt)} 확인${sy.lastChangedAt ? ', ' + ago(sy.lastChangedAt) + ' 변경' : ''})` : ' · 저장소 동기화 대기 중';
+  }
   document.getElementById('meta').innerHTML += d.accounts.map(a => {
     if (!a.tokenExpiresAt) return ` · ${langTag(a.lang)} 토큰 만료일 확인 중`;
     const days = Math.round((a.tokenExpiresAt - Date.now()) / 864e5);
@@ -110,7 +118,6 @@ function render(d) {
   }).join('');
 
   const STATE = { start: ['running','작업 중'], info: ['running','작업 중'], done: ['done','완료'], fail: ['fail','실패'] };
-  const ago = t => { const m = Math.round((Date.now() - new Date(t)) / 60000); return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.round(m/60) + '시간 전' : Math.round(m/1440) + '일 전'; };
 
   // 작업자별 "일하는 모습" — 어떤 종류의 일을 하는지
   const WORK = {

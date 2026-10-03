@@ -5,8 +5,13 @@ import { createApi, verifySignature } from './instagram.js';
 import { loadRepos, ensureReposFile } from './repos.js';
 import { createHandlers } from './handlers.js';
 import { createTokenStore } from './tokens.js';
+import { createRepoSync } from './sync.js';
 
-const { PORT = 3000, VERIFY_TOKEN, DASHBOARD_TOKEN, TOKENS_FILE = 'data/tokens.json' } = process.env;
+const {
+  PORT = 3000, VERIFY_TOKEN, DASHBOARD_TOKEN, TOKENS_FILE = 'data/tokens.json',
+  REPOS_SYNC_REPO, REPOS_SYNC_BRANCH = 'main', REPOS_SYNC_PATH = 'data/repos.json',
+  REPOS_SYNC_INTERVAL_MIN = '5', GITHUB_TOKEN,
+} = process.env;
 
 // 한국어/영어 계정 분리 운영: 환경변수에 설정된 계정만 활성화
 const accounts = {};
@@ -35,7 +40,16 @@ for (const lang of Object.keys(seeds)) {
 if (!Object.keys(accounts).length) console.warn('설정된 인스타그램 계정이 없습니다 (.env 확인)');
 else tokens.start();
 
-ensureReposFile(); // 볼륨에 repos.json이 없으면 기본 파일로 생성
+const reposFilePath = ensureReposFile(); // 볼륨에 repos.json이 없으면 기본 파일로 생성
+
+// 저장소의 repos.json을 주기적으로 가져와 반영 (REPOS_SYNC_REPO=owner/repo 설정 시)
+const repoSync = createRepoSync({
+  repo: REPOS_SYNC_REPO, branch: REPOS_SYNC_BRANCH, path: REPOS_SYNC_PATH,
+  token: GITHUB_TOKEN, file: reposFilePath,
+  onError: (e) => { record('-', 'error', { detail: `repos 동기화: ${e.message}` }); console.error(e.message); },
+});
+repoSync.start(Math.max(1, Number(REPOS_SYNC_INTERVAL_MIN)) * 60 * 1000);
+
 const handleWebhook = createHandlers({ accounts, loadRepos });
 
 const dashboardHtml = new URL('./dashboard.html', import.meta.url);
@@ -117,6 +131,7 @@ createServer(async (req, res) => {
       ...snapshot(),
       accounts: Object.entries(accounts).map(([id, a]) => ({ id, lang: a.lang, tokenExpiresAt: tokens.expiresAt(a.lang) })),
       repos: loadRepos(),
+      sync: repoSync.status(),
       agents: listAgents(),
       activity: listActivity(),
       outputs: listOutputs(),
