@@ -1,9 +1,11 @@
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production \
-    TOKENS_FILE=/data/tokens.json
+    TOKENS_FILE=/data/tokens.json \
+    REPOS_FILE=/data/repos.json
 COPY package.json ./
 COPY src ./src
+# 기본(시드) 파일: 볼륨의 /data/repos.json이 없을 때 최초 1회만 복사됨
 COPY data/repos.json ./data/repos.json
 COPY scripts ./scripts
 COPY .claude/agents ./.claude/agents

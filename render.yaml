@@ -11,6 +11,7 @@ services:
       sizeGB: 1
     envVars:
       - { key: TOKENS_FILE, value: /data/tokens.json }
+      - { key: REPOS_FILE, value: /data/repos.json }
       - { key: VERIFY_TOKEN, sync: false }
       - { key: APP_SECRET, sync: false }
       - { key: DASHBOARD_TOKEN, sync: false }

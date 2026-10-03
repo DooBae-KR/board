@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { snapshot, record } from './stats.js';
 import { createApi, verifySignature } from './instagram.js';
-import { loadRepos } from './repos.js';
+import { loadRepos, ensureReposFile } from './repos.js';
 import { createHandlers } from './handlers.js';
 import { createTokenStore } from './tokens.js';
 
@@ -35,6 +35,7 @@ for (const lang of Object.keys(seeds)) {
 if (!Object.keys(accounts).length) console.warn('설정된 인스타그램 계정이 없습니다 (.env 확인)');
 else tokens.start();
 
+ensureReposFile(); // 볼륨에 repos.json이 없으면 기본 파일로 생성
 const handleWebhook = createHandlers({ accounts, loadRepos });
 
 const dashboardHtml = new URL('./dashboard.html', import.meta.url);

@@ -6,6 +6,7 @@ services:
     env_file: .env
     environment:
       TOKENS_FILE: /data/tokens.json
+      REPOS_FILE: /data/repos.json
     ports:
       - "3000:3000"
     volumes:
