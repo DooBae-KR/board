@@ -67,6 +67,11 @@ function render(d) {
   const c = d.counters, sent = sum(c,'link_direct') + sum(c,'click_ok');
   document.getElementById('meta').textContent =
     `서버 시작 ${new Date(d.startedAt).toLocaleString()} · 연결 계정 ${d.accounts.length}개 (${d.accounts.map(a=>a.lang).join(', ') || '없음'})`;
+  document.getElementById('meta').innerHTML += d.accounts.map(a => {
+    if (!a.tokenExpiresAt) return ` · ${langTag(a.lang)} 토큰 만료일 확인 중`;
+    const days = Math.round((a.tokenExpiresAt - Date.now()) / 864e5);
+    return ` · ${langTag(a.lang)} 토큰 <span class="${days < 7 ? 'bad' : 'ok'}">${days}일 남음</span>`;
+  }).join('');
   document.getElementById('kpis').innerHTML = [
     ['댓글 매칭', sum(c,'matched')], ['링크 발송 완료', sent],
     ['팔로우 대기', sum(c,'asked')], ['오류', sum(c,'error')]

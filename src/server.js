@@ -4,17 +4,36 @@ import { snapshot, record } from './stats.js';
 import { createApi, verifySignature } from './instagram.js';
 import { loadRepos } from './repos.js';
 import { createHandlers } from './handlers.js';
+import { createTokenStore } from './tokens.js';
 
-const { PORT = 3000, VERIFY_TOKEN, DASHBOARD_TOKEN } = process.env;
+const { PORT = 3000, VERIFY_TOKEN, DASHBOARD_TOKEN, TOKENS_FILE = 'data/tokens.json' } = process.env;
 
 // 한국어/영어 계정 분리 운영: 환경변수에 설정된 계정만 활성화
 const accounts = {};
+const ids = {}; // lang -> igUserId
+const seeds = {};
 for (const [lang, key] of [['ko', 'KO'], ['en', 'EN']]) {
   const igUserId = process.env[`IG_${key}_USER_ID`];
   const token = process.env[`IG_${key}_ACCESS_TOKEN`];
-  if (igUserId && token) accounts[igUserId] = { lang, api: createApi({ igUserId, token }) };
+  if (igUserId && token) {
+    ids[lang] = igUserId;
+    seeds[lang] = token;
+  }
+}
+// 장기 토큰(60일)을 파일에 보관하고 만료 전 자동 갱신
+const tokens = createTokenStore({
+  file: TOKENS_FILE,
+  seeds,
+  onError: (lang, e) => {
+    record(lang, 'error', { detail: e.message });
+    console.error(e);
+  },
+});
+for (const lang of Object.keys(seeds)) {
+  accounts[ids[lang]] = { lang, api: createApi({ igUserId: ids[lang], token: () => tokens.get(lang) }) };
 }
 if (!Object.keys(accounts).length) console.warn('설정된 인스타그램 계정이 없습니다 (.env 확인)');
+else tokens.start();
 
 const handleWebhook = createHandlers({ accounts, loadRepos });
 
@@ -73,6 +92,7 @@ const json = (res, code, obj) =>
 
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (url.pathname === '/healthz') return res.writeHead(200).end('ok');
 
   // 대시보드: DASHBOARD_TOKEN이 설정되어 있고 일치할 때만 접근 허용
   if (url.pathname === '/dashboard' || url.pathname === '/api/stats') {
@@ -83,7 +103,7 @@ createServer(async (req, res) => {
     }
     return json(res, 200, {
       ...snapshot(),
-      accounts: Object.entries(accounts).map(([id, a]) => ({ id, lang: a.lang })),
+      accounts: Object.entries(accounts).map(([id, a]) => ({ id, lang: a.lang, tokenExpiresAt: tokens.expiresAt(a.lang) })),
       repos: loadRepos(),
       agents: listAgents(),
       activity: listActivity(),

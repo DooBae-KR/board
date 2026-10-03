@@ -12,10 +12,11 @@ export function verifySignature(rawBody, header, appSecret = process.env.APP_SEC
 
 // 계정(한국어/영어)별 API 클라이언트
 export function createApi({ igUserId, token }) {
+  const getToken = typeof token === 'function' ? token : () => token; // 갱신되는 토큰 지원
   async function graph(path, { method = 'GET', body } = {}) {
     const res = await fetch(`${GRAPH}/${path}`, {
       method,
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
       body: body && JSON.stringify(body),
     });
     const json = await res.json();

@@ -1,3 +1,4 @@
 node_modules/
 .env
 data/activity.jsonl
+data/tokens.json
