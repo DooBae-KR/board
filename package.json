@@ -1,0 +1,12 @@
+{
+  "name": "repo-dm-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "인스타그램 댓글 → 팔로우 검증 → DM으로 GitHub 주소 전송",
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20.6" }
+}

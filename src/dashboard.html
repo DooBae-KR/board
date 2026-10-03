@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Repo DM 대시보드</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#14171f;--mute:#6b7280;--line:#e5e7eb;--ko:#2563eb;--en:#d97706;--ok:#16a34a;--bad:#dc2626}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#171a21;--fg:#e8eaf0;--mute:#9aa3b2;--line:#262b36;--ko:#60a5fa;--en:#fbbf24;--ok:#4ade80;--bad:#f87171}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Noto Sans KR",sans-serif}
+main{max-width:1100px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:8px 0 2px}h2{font-size:15px;margin:0 0 10px}
+.sub{color:var(--mute);font-size:13px;margin-bottom:16px}
+.grid{display:grid;gap:12px}.g2{grid-template-columns:1fr 1fr}.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:760px){.g2,.g4{grid-template-columns:1fr 1fr}}@media(max-width:480px){.g2,.g4{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;overflow:auto}
+.kpi b{display:block;font-size:26px}.kpi span{color:var(--mute);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--mute);font-weight:600}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:12px;border:1px solid currentColor}
+.ko{color:var(--ko)}.en{color:var(--en)}.ok{color:var(--ok)}.bad{color:var(--bad)}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}
+.agent{padding:8px 0;border-bottom:1px solid var(--line)}.agent:last-child{border:0}.agent small{color:var(--mute);display:block;white-space:normal}
+a{color:inherit}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--mute)}
+.dot.running{background:var(--en);animation:p 1.2s infinite}.dot.done{background:var(--ok)}.dot.fail{background:var(--bad)}
+@keyframes p{50%{opacity:.3}}
+details{margin-top:6px}summary{cursor:pointer;color:var(--mute);font-size:13px}
+pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;background:var(--bg);padding:8px;border-radius:8px;margin:6px 0 0}
+.chip{font-size:11px;color:var(--mute);border:1px solid var(--line);border-radius:6px;padding:0 6px;margin-right:4px}
+
+.hero{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.hero img{height:96px;image-rendering:pixelated}
+.bubble{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;max-width:560px}
+.bubble:before{content:"";position:absolute;left:-7px;top:50%;width:12px;height:12px;background:var(--card);border-left:1px solid var(--line);border-bottom:1px solid var(--line);transform:translateY(-50%) rotate(45deg)}
+.bubble b{display:block}.bubble span{color:var(--mute);font-size:13px}
+.acard{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}.acard:last-child{border:0}
+.sprite{flex:0 0 120px;height:120px;display:flex;align-items:flex-end;justify-content:center;border-radius:12px;position:relative}
+.sprite img{max-width:112px;max-height:112px;image-rendering:pixelated}
+.sprite.working{background:linear-gradient(180deg,rgba(217,119,6,.12),transparent)}.sprite.working img{animation:bob .9s ease-in-out infinite}
+.sprite.done{background:linear-gradient(180deg,rgba(22,163,74,.12),transparent)}.sprite.done img{animation:hop .6s ease-out 2}
+.sprite.fail{background:linear-gradient(180deg,rgba(220,38,38,.12),transparent)}.sprite.fail img{animation:shake .4s 3}
+.sprite.rest{background:linear-gradient(180deg,rgba(107,114,128,.10),transparent)}.sprite.rest img{border-radius:10px}
+.zzz{position:absolute;top:6px;right:8px;font-weight:700;color:var(--mute);animation:float 2.4s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-4px)}}@keyframes hop{40%{transform:translateY(-12px)}}
+@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}@keyframes float{50%{transform:translateY(-6px);opacity:.4}}
+.abody{flex:1;min-width:0}.state{display:inline-block;padding:1px 10px;border-radius:99px;font-size:12px;font-weight:700;margin-left:6px}
+.state.working{background:rgba(217,119,6,.18);color:var(--en)}.state.done{background:rgba(22,163,74,.18);color:var(--ok)}
+.state.fail{background:rgba(220,38,38,.18);color:var(--bad)}.state.rest{background:rgba(107,114,128,.18);color:var(--mute)}
+.steps{list-style:none;margin:8px 0 0;padding:0;font-size:13px}.steps li{padding:2px 0 2px 18px;position:relative;color:var(--mute)}
+.steps li:before{content:"○";position:absolute;left:0}.steps li.cur{color:var(--fg);font-weight:600}.steps li.cur:before{content:"●";color:var(--en);animation:p 1.2s infinite}
+.steps li.ok:before{content:"✔";color:var(--ok)}.steps li.bad:before{content:"✖";color:var(--bad)}
+@media(max-width:480px){.acard{flex-direction:column}.sprite{flex-basis:auto;width:100%}}
+</style>
+</head>
+<body>
+<main>
+<div class="hero"><img id="mascot" src="/assets/char/sit.png" alt=""><div class="bubble"><b id="hero-title">불러오는 중…</b><span id="hero-sub"></span></div></div>
+<h1>📦 Repo DM 대시보드</h1>
+<div class="sub" id="meta">불러오는 중…</div>
+
+<div class="grid g4" id="kpis"></div>
+
+<div class="card" style="margin-top:12px"><h2>계정별 전환 퍼널</h2><div id="funnel"></div></div>
+<div class="card" style="margin-top:12px"><h2>작업자(에이전트) 현황 — 무엇을 하고 있나</h2><div id="agents"></div></div>
+<div class="grid g2" style="margin-top:12px">
+  <div class="card"><h2>작업 로그</h2><div id="activity"></div></div>
+  <div class="card"><h2>산출물</h2><div id="outputs"></div></div>
+</div>
+
+<div class="card" style="margin-top:12px"><h2>등록된 영상 / 레포</h2><div id="repos"></div></div>
+<div class="card" style="margin-top:12px"><h2>최근 이벤트 (최대 50개)</h2><div id="recent"></div></div>
+<div class="sub" style="margin-top:12px">※ 집계는 서버 메모리 기반이라 서버를 재시작하면 초기화됩니다. 15초마다 자동 갱신.</div>
+</main>
+<script>
+const token = new URLSearchParams(location.search).get('token') || '';
+const LABEL = {matched:'댓글 매칭',link_direct:'팔로워 즉시 발송',asked:'팔로우 요청 DM',click_ok:'버튼→발송 성공',click_retry:'버튼→미팔로우',error:'오류'};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sum = (c, k) => Object.values(c).reduce((a, x) => a + (x[k] || 0), 0);
+const langTag = l => `<span class="tag ${l}">${l === 'ko' ? '한국어' : l === 'en' ? 'English' : l}</span>`;
+
+const ago = t => { const m = Math.round((Date.now() - new Date(t)) / 60000); return m < 1 ? '방금' : m < 60 ? m + '분 전' : m < 1440 ? Math.round(m/60) + '시간 전' : Math.round(m/1440) + '일 전'; };
+
+async function load() {
+  try {
+    const r = await fetch('/api/stats', { headers: { Authorization: 'Bearer ' + token } });
+    if (!r.ok) throw new Error(r.status);
+    render(await r.json());
+  } catch (e) { document.getElementById('meta').textContent = '불러오기 실패 (' + e.message + ') — 토큰을 확인하세요'; }
+}
+
+function render(d) {
+  const c = d.counters, sent = sum(c,'link_direct') + sum(c,'click_ok');
+  document.getElementById('meta').textContent =
+    `서버 시작 ${new Date(d.startedAt).toLocaleString()} · 연결 계정 ${d.accounts.length}개 (${d.accounts.map(a=>a.lang).join(', ') || '없음'})`;
+  if (d.sync?.enabled) {
+    const sy = d.sync;
+    document.getElementById('meta').innerHTML += sy.ok === false
+      ? ` · 저장소 동기화 <span class="bad">실패: ${esc(sy.error)}</span>`
+      : sy.ok ? ` · 저장소 동기화 <span class="ok">정상</span> (${ago(sy.lastCheckedAt)} 확인${sy.lastChangedAt ? ', ' + ago(sy.lastChangedAt) + ' 변경' : ''})` : ' · 저장소 동기화 대기 중';
+  }
+  document.getElementById('meta').innerHTML += d.accounts.map(a => {
+    if (!a.tokenExpiresAt) return ` · ${langTag(a.lang)} 토큰 만료일 확인 중`;
+    const days = Math.round((a.tokenExpiresAt - Date.now()) / 864e5);
+    return ` · ${langTag(a.lang)} 토큰 <span class="${days < 7 ? 'bad' : 'ok'}">${days}일 남음</span>`;
+  }).join('');
+  document.getElementById('kpis').innerHTML = [
+    ['댓글 매칭', sum(c,'matched')], ['링크 발송 완료', sent],
+    ['팔로우 대기', sum(c,'asked')], ['오류', sum(c,'error')]
+  ].map(([l,v]) => `<div class="card kpi"><b>${v}</b><span>${l}</span></div>`).join('');
+
+  const langs = ['ko','en'];
+  document.getElementById('funnel').innerHTML = langs.map(l => {
+    const x = c[l] || {}, m = x.matched || 0, s = (x.link_direct||0) + (x.click_ok||0), pct = m ? Math.round(s/m*100) : 0;
+    return `<div style="margin-bottom:12px">${langTag(l)} 매칭 ${m} → 발송 ${s} (<b>${pct}%</b>)
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <small style="color:var(--mute)">즉시 ${x.link_direct||0} · 요청 ${x.asked||0} · 버튼 성공 ${x.click_ok||0} · 미팔로우 ${x.click_retry||0}</small></div>`;
+  }).join('');
+
+  const STATE = { start: ['running','작업 중'], info: ['running','작업 중'], done: ['done','완료'], fail: ['fail','실패'] };
+
+  // 작업자별 "일하는 모습" — 어떤 종류의 일을 하는지
+  const WORK = {
+    'repo-scout':      { sprite: 'book',   label: '자료 조사 중' },
+    'script-writer':   { sprite: 'laptop', label: '대본 작성 중' },
+    'repo-registrar':  { sprite: 'phone',  label: '등록·검증 중' },
+    'publish-checker': { sprite: 'think',  label: '업로드 전 점검 중' },
+  };
+  const REST_AFTER = 10 * 60000, STALL_AFTER = 60 * 60000;
+
+  // 상태 판정: working(작업 중) / done(방금 완료) / fail / rest(휴식 중)
+  function stateOf(last) {
+    if (!last) return 'rest';
+    const age = Date.now() - new Date(last.at);
+    if (last.status === 'start' || last.status === 'info') return age > STALL_AFTER ? 'stalled' : 'working';
+    if (last.status === 'fail') return 'fail';
+    return age > REST_AFTER ? 'rest' : 'done';
+  }
+
+  let working = 0, resting = 0;
+  const cards = d.agents.map(a => {
+    const mine = d.activity.filter(x => x.agent === a.name), last = mine[0];
+    const st = stateOf(last), w = WORK[a.name] || { sprite: 'laptop', label: '작업 중' };
+    // 마지막 실행(start~현재)의 단계들
+    const run = []; for (const x of mine) { run.unshift(x); if (x.status === 'start') break; }
+    let sprite, cls, badge;
+    if (st === 'working') { sprite = w.sprite; cls = 'working'; badge = w.label; working++; }
+    else if (st === 'stalled') { sprite = 'think'; cls = 'fail'; badge = '응답 없음? (60분↑ 기록 없음)'; working++; }
+    else if (st === 'done') { sprite = 'happy'; cls = 'done'; badge = '방금 완료!'; resting++; }
+    else if (st === 'fail') { sprite = 'flustered'; cls = 'fail'; badge = '문제가 생겼어요'; resting++; }
+    else { sprite = 'sleep'; cls = 'rest'; badge = '휴식 중'; resting++; }
+    const started = run.find(x => x.status === 'start');
+    const elapsed = st === 'working' && started ? ` · ${ago(started.at).replace(' 전','')} 째 작업 중` : '';
+    const steps = run.map((x, i) => {
+      const isLast = i === run.length - 1;
+      const k = x.status === 'done' ? 'ok' : x.status === 'fail' ? 'bad' : (isLast && st === 'working' ? 'cur' : 'ok');
+      return `<li class="${k}">${esc(x.message)} <span style="color:var(--mute);font-weight:400">· ${new Date(x.at).toLocaleTimeString()}</span></li>`;
+    }).join('');
+    return `<div class="acard"><div class="sprite ${cls}"><img src="/assets/char/${sprite}.png" alt="">${st === 'rest' ? '<span class="zzz">Zzz</span>' : ''}</div>
+      <div class="abody"><b>${esc(a.name)}</b> <span class="tag">${esc(a.model)}</span><span class="state ${cls}">${badge}</span><span style="color:var(--mute)">${elapsed}${last ? ' · 마지막 활동 ' + ago(last.at) : ''}</span>
+      <small style="display:block;color:var(--mute)">${esc(a.description)}</small>
+      ${steps ? `<ul class="steps">${steps}</ul>` : '<small style="display:block;color:var(--mute);margin-top:6px">아직 기록된 작업이 없어요. 호출되면 여기에서 일하는 모습을 볼 수 있어요.</small>'}
+      <div style="margin-top:6px">${a.tools.map(t => `<span class="chip">${esc(t)}</span>`).join('')}<span class="chip">기록 ${mine.length}건</span></div>
+      <details><summary>수행하는 작업 지침 보기</summary><pre>${esc(a.role)}</pre></details></div></div>`;
+  });
+  document.getElementById('agents').innerHTML = cards.length ? cards.join('') : '<span style="color:var(--mute)">.claude/agents 없음</span>';
+
+  // 상단 마스코트: 전체 상태 요약
+  const failed = d.agents.some(a => stateOf(d.activity.find(x => x.agent === a.name)) === 'fail');
+  const [mascot, title] = working ? ['cando', `지금 ${working}명이 일하고 있어요!`] : failed ? ['flustered', '문제가 생긴 작업이 있어요'] : ['sit', '지금은 모두 쉬는 중이에요'];
+  document.getElementById('mascot').src = `/assets/char/${mascot}.png`;
+  document.getElementById('hero-title').textContent = title;
+  document.getElementById('hero-sub').textContent = `작업 중 ${working} · 휴식 중 ${resting} · 댓글 매칭 ${sum(c,'matched')}건 · 링크 발송 ${sent}건`;
+
+  document.getElementById('activity').innerHTML = d.activity.length
+    ? `<table><tr><th>시간</th><th>작업자</th><th>상태</th><th>내용</th></tr>` + d.activity.slice(0, 30).map(x => {
+        const [cls, label] = STATE[x.status] || ['', x.status];
+        return `<tr><td>${new Date(x.at).toLocaleString()}</td><td>${esc(x.agent)}</td><td><span class="dot ${cls}"></span>${label}</td><td style="white-space:normal">${esc(x.message)}</td></tr>`;
+      }).join('') + '</table>'
+    : '<span style="color:var(--mute)">에이전트가 작업을 시작하면 여기에 표시됩니다</span>';
+
+  document.getElementById('outputs').innerHTML = d.outputs.length
+    ? `<table><tr><th>종류</th><th>파일</th><th>수정</th></tr>` + d.outputs.map(o =>
+        `<tr><td>${esc(o.kind)}</td><td>${esc(o.file)}</td><td>${ago(o.modified)}</td></tr>`).join('') + '</table>'
+    : '<span style="color:var(--mute)">아직 산출물이 없습니다</span>';
+
+  const byRepo = {}; d.recent.forEach(e => { if (e.repoId) (byRepo[e.repoId] ??= {})[e.event] = (byRepo[e.repoId][e.event]||0)+1; });
+  document.getElementById('repos').innerHTML = `<table><tr><th>ID</th><th>언어</th><th>레포</th><th>키워드</th><th>미디어 ID</th><th>상태</th></tr>` +
+    d.repos.map(r => {
+      const placeholder = !/^\d+$/.test(r.mediaId);
+      const lang = (r.id.match(/-(ko|en)$/) || [])[1] || '';
+      return `<tr><td>${esc(r.id)}</td><td>${lang ? langTag(lang) : ''}</td><td><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a></td><td>${esc(r.keyword)}</td><td>${esc(r.mediaId)}</td>
+      <td class="${placeholder ? 'bad' : 'ok'}">${placeholder ? '⚠ 미디어 ID 미입력' : '✔ 활성'}</td></tr>`;
+    }).join('') + '</table>';
+
+  document.getElementById('recent').innerHTML = d.recent.length
+    ? `<table><tr><th>시간</th><th>언어</th><th>이벤트</th><th>레포</th><th>비고</th></tr>` +
+      d.recent.map(e => `<tr><td>${new Date(e.at).toLocaleTimeString()}</td><td>${langTag(e.lang)}</td>
+      <td class="${e.event==='error'?'bad':''}">${LABEL[e.event]||e.event}</td><td>${esc(e.repoId)}</td><td>${esc(e.detail)}</td></tr>`).join('') + '</table>'
+    : '<span style="color:var(--mute)">아직 이벤트가 없습니다</span>';
+}
+load(); setInterval(load, 15000);
+</script>
+</body>
+</html>

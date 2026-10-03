@@ -1,0 +1,6 @@
+.git
+.env
+node_modules
+data/tokens.json
+data/activity.jsonl
+docs

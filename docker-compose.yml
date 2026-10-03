@@ -1,0 +1,15 @@
+# 자체 서버/VPS용: docker compose up -d --build  (.env 필요)
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TOKENS_FILE: /data/tokens.json
+      REPOS_FILE: /data/repos.json
+    ports:
+      - "3000:3000"
+    volumes:
+      - bot-data:/data
+volumes:
+  bot-data:
