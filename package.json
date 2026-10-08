@@ -6,7 +6,13 @@
   "description": "인스타그램 댓글 → 팔로우 검증 → DM으로 GitHub 주소 전송",
   "scripts": {
     "start": "node --env-file=.env src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "agents:sync": "node --env-file=.env scripts/agents-sync.js",
+    "agents:check": "node scripts/agents-sync.js --dry-run",
+    "harness:report": "node --env-file=.env scripts/harness-report.js",
+    "motions:render": "node --env-file=.env scripts/render-motions.js"
   },
-  "engines": { "node": ">=20.6" }
+  "engines": {
+    "node": ">=20.6"
+  }
 }

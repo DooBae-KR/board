@@ -61,3 +61,10 @@
 - 이후 볼륨의 파일만 수정하면 되고, 서버는 요청마다 파일을 읽으므로 **재시작/재배포 없이 바로 반영**됩니다. 파일 JSON이 깨지면 마지막 정상본을 유지하고 로그에 오류를 남깁니다.
 - 수정 방법 예: `docker compose exec bot vi /data/repos.json` (또는 Render 셸).
 - 주의: 저장소의 `data/repos.json`을 고쳐 재배포해도 이미 볼륨에 파일이 있으면 반영되지 않습니다.
+
+## 에이전트 하네스
+규칙은 [`CLAUDE.md`](CLAUDE.md)에 있습니다. 요약:
+- **정의**: `agents/<id>.md` (에이전트 1명 = 파일 1개) → `npm run agents:sync`로 Supabase에 반영
+- **상태·데이터**: Supabase `harness_*` 테이블 (`supabase/migrations/`), 진행 보고는 `npm run harness:report -- <id> <start|step|done|…>`
+- **실행**: Agent Substrate Actor (에이전트 1명 = Actor 1개, `substrate/`)
+- **모션**: HyperFrames 컴포지션 (`motion/`) → `npm run motions:render -- <id> --upload`
