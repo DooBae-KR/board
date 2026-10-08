@@ -2,7 +2,7 @@
 -- 접두사 harness_ : 같은 프로젝트의 다른 앱 테이블(agent_team, agent_staff 등)과 섞이지 않게 한다.
 -- 쓰기는 service_role(하네스 서버·스크립트)만. 대시보드 로그인 사용자는 읽기만.
 
-create extension if not exists pgcrypto;
+-- gen_random_uuid()는 Postgres 13+ 기본 함수라 확장이 필요 없다.
 
 create or replace function public.harness_touch_updated_at()
 returns trigger language plpgsql set search_path = '' as $$
