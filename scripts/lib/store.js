@@ -49,6 +49,13 @@ export function createStore(db) {
       return (await db.upsert('harness_widgets', [row], 'section_id,title'))[0];
     },
 
+    // --- 대시보드 로그인 계정 (harness_admins, service_role 전용) ---
+    async getAdmin(username) { return (await db.select('harness_admins', `select=username,password_hash&${db.eq('username', username)}`))[0] ?? null; },
+    async countAdmins() { return (await db.select('harness_admins', 'select=username&limit=1')).length; },
+    async upsertAdmin(username, passwordHash) {
+      return (await db.upsert('harness_admins', [{ username, password_hash: passwordHash, updated_at: new Date().toISOString() }], 'username'))[0];
+    },
+
     // --- 작업 지시 요청함 (harness_tasks) ---
     async listTasks({ agent, status, limit = 50 } = {}) {
       const q = ['select=*', 'order=created_at.asc', `limit=${limit}`];

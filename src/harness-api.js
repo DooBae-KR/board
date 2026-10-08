@@ -3,12 +3,13 @@
 // 토큰은 주소(URL)에 싣지 않는다. 기록·히스토리·Referer에 남기 때문이다.
 //   DASHBOARD_TOKEN    사람(대시보드): /harness 로그인 폼에 입력(POST) → HttpOnly 세션 쿠키. 읽기, 보고, 섹션 추가·삭제, 위젯 갱신
 //   HARNESS_API_TOKEN  에이전트(Agent Substrate Actor): Authorization: Bearer 헤더. 보고, 섹션 추가, 위젯 갱신
-// 쿠키 세션은 DASHBOARD_TOKEN으로 서명한 값이라 서버에 저장하지 않고, 토큰을 바꾸면 모든 세션이 무효가 된다.
+// 쿠키 세션은 서버 비밀값(DASHBOARD_TOKEN 등)에서 만든 키로 암호화한 값이라 서버에 저장하지 않고, 비밀값을 바꾸면 모든 세션이 무효가 된다.
 // 쓰기는 모두 서버가 service_role로 한다. 브라우저는 Supabase에 직접 닿지 않는다 (CLAUDE.md 2-3).
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { HarnessError, MOTION_STATES, ID_RE, looksSecret } from '../scripts/lib/harness.js';
 import { runReport } from '../scripts/lib/report.js';
+import { verifyPassword, USERNAME_RE } from '../scripts/lib/password.js';
 
 const COLORS = ['lavender', 'pink', 'mint', 'peach', 'sky'];
 const WIDGET_TYPES = ['kpi', 'donut', 'bars', 'line', 'list', 'feed'];
@@ -25,14 +26,31 @@ const sameToken = (a, b) => !!a && !!b && timingSafeEqual(digest(a), digest(b));
 const CONTROL = /[\u0000-\u001f\u007f]/;
 
 const COOKIE = 'harness_session';
+const TOKEN_USER = '\u0000token';
 const SESSION_MS = 12 * 60 * 60 * 1000;
-const sign = (key, exp) => createHmac('sha256', key).update(`harness-session:v1:${exp}`).digest('base64url');
-const makeSession = (key, now = Date.now()) => { const exp = now + SESSION_MS; return `${exp}.${sign(key, exp)}`; };
-function validSession(key, value, now = Date.now()) {
-  if (!key || !value) return false;
-  const [exp, sig] = String(value).split('.');
-  if (!/^\d{10,15}$/.test(exp || '') || !sig || Number(exp) < now) return false;
-  return sameToken(sig, sign(key, exp));
+// 세션 쿠키 = AES-256-GCM으로 암호화한 {만료, 사용자, 비밀번호 지문}. 암호화 키는 서버 비밀값(DASHBOARD_TOKEN)에서 HKDF로 만든다.
+// 쿠키에는 토큰이 없고, 내용을 읽을 수도 위조할 수도 없다(GCM 인증 태그). 형식: iv.암호문.태그 (모두 hex)
+const aesKey = (key) => Buffer.from(hkdfSync('sha256', String(key), 'harness-session', 'aes-256-gcm:v2', 32));
+const fingerprint = (hash) => createHash('sha256').update(String(hash)).digest('hex').slice(0, 16);
+function makeSession(key, user, fp = '', now = Date.now()) {
+  const iv = randomBytes(12);
+  const c = createCipheriv('aes-256-gcm', aesKey(key), iv);
+  const ct = Buffer.concat([c.update(JSON.stringify({ exp: now + SESSION_MS, u: user, f: fp }), 'utf8'), c.final()]);
+  return [iv, ct, c.getAuthTag()].map((b) => b.toString('hex')).join('.');
+}
+/** 복호화에 성공하고 만료 전이면 {u, f}, 아니면 null (계정 확인은 호출한 쪽이 한다) */
+function openSession(key, value, now = Date.now()) {
+  if (!key || !value) return null;
+  const parts = String(value).split('.');
+  if (parts.length !== 3 || !parts.every((p) => /^[0-9a-f]+$/.test(p))) return null;
+  const [iv, ct, tag] = parts.map((p) => Buffer.from(p, 'hex'));
+  if (iv.length !== 12 || tag.length !== 16 || ct.length > 256) return null;
+  try {
+    const d = createDecipheriv('aes-256-gcm', aesKey(key), iv);
+    d.setAuthTag(tag);
+    const { exp, u, f } = JSON.parse(Buffer.concat([d.update(ct), d.final()]).toString('utf8'));
+    return Number.isFinite(exp) && exp >= now && typeof u === 'string' ? { u, f: String(f ?? '') } : null;
+  } catch { return null; }
 }
 const cookieOf = (req, name) => (req.headers.cookie ?? '').split(';').map((c) => c.trim().split(/=(.*)/s)).find(([k]) => k === name)?.[1];
 /** 쿠키로 인증된 쓰기 요청은 같은 출처에서 온 것만 받는다(CSRF 방어. SameSite=Strict와 함께 이중으로) */
@@ -55,13 +73,13 @@ async function readForm(req) {
 }
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const loginPage = (nonce, error) => `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>하네스 로그인</title>
+const loginPage = (nonce, error, withUser = false) => `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>하네스 로그인</title>
 <style nonce="${nonce}">body{margin:0;min-height:100vh;display:grid;place-items:center;background:#F2F0FA;color:#2C2852;font:16px/1.5 system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
 form{background:#fff;border:1px solid #D9D3F1;border-radius:16px;padding:28px;width:min(360px,calc(100% - 32px));display:grid;gap:14px}
 h1{margin:0;font-size:22px}input{padding:10px 12px;border:1px solid #D9D3F1;border-radius:10px;font:inherit;width:100%;box-sizing:border-box}
 button{padding:10px;border:0;border-radius:10px;background:#6F62D2;color:#fff;font:inherit;cursor:pointer}.err{color:#D4506A;margin:0;font-size:14px}p{margin:0;color:#6E6896;font-size:14px}</style></head>
-<body><form method="post" action="/harness/login"><h1>하네스 대시보드</h1><p>대시보드 토큰을 입력하세요. 주소에는 남지 않아요.</p>
-<input type="password" name="token" autocomplete="current-password" aria-label="대시보드 토큰" required autofocus>${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}<button type="submit">들어가기</button></form></body></html>`;
+<body><form method="post" action="/harness/login"><h1>하네스 대시보드</h1><p>${withUser ? '아이디와 비밀번호를 입력하세요.' : '대시보드 토큰을 입력하세요. 주소에는 남지 않아요.'}</p>
+${withUser ? '<input type="text" name="username" autocomplete="username" aria-label="아이디" placeholder="아이디" required autofocus>\n<input type="password" name="password" autocomplete="current-password" aria-label="비밀번호" placeholder="비밀번호" required>' : '<input type="password" name="token" autocomplete="current-password" aria-label="대시보드 토큰" required autofocus>'}${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}<button type="submit">들어가기</button></form></body></html>`;
 
 /** 응답에 쓰는 동시에 열린 요청 본문은 버린다 */
 function send(res, code, body, headers = {}) {
@@ -146,17 +164,25 @@ function pageHeaders(nonce, mediaOrigin) {
  * @param {(e: Error) => void} [o.onError]
  */
 export function createHarnessApi({ store, dashboardToken, agentToken, sprites, pageUrl, pageHtml, supabaseUrl, onError = console.error }) {
+  /** 로그인 계정이 하나라도 있으면 아이디/비밀번호 로그인. 테이블이 없거나 조회가 실패하면 없는 것으로 본다(최초 설정용 토큰 로그인) */
+  const hasAdmins = async () => !!(await store?.countAdmins().catch(() => 0));
   const mediaOrigin = supabaseUrl ? new URL(supabaseUrl).origin : '';
 
   /** 인증 결과: 에이전트·스크립트는 Bearer 헤더, 사람은 로그인 쿠키. 주소의 ?token= 은 받지 않는다 */
-  const auth = (req) => {
+  const auth = async (req) => {
     const bearer = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? '')?.[1]?.trim();
     if (bearer) {
       if (sameToken(bearer, dashboardToken)) return { who: 'dashboard' };
       if (sameToken(bearer, agentToken)) return { who: 'agent' };
       return { who: null };
     }
-    if (validSession(dashboardToken, cookieOf(req, COOKIE))) return { who: 'dashboard', viaCookie: true };
+    const sess = openSession(dashboardToken, cookieOf(req, COOKIE));
+    if (sess) {
+      if (sess.u === TOKEN_USER) return { who: 'dashboard', viaCookie: true }; // 토큰으로 로그인한 세션(계정이 하나도 없을 때만 가능)
+      // 계정이 지워졌거나 비밀번호가 바뀌었으면 그 세션은 무효
+      const admin = await store?.getAdmin(sess.u).catch(() => null);
+      if (admin && sameToken(fingerprint(admin.password_hash), sess.f)) return { who: 'dashboard', viaCookie: true };
+    }
     return { who: null };
   };
 
@@ -254,7 +280,7 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
     if (!isPage && !isAuthPath && path !== '/api/harness' && !path.startsWith('/api/harness/')) return false;
 
     try {
-      const { who, viaCookie } = auth(req);
+      const { who, viaCookie } = await auth(req);
       const page = (code, html, extra = {}) => { const nonce = randomBytes(16).toString('base64'); return res.writeHead(code, { ...pageHeaders(nonce, mediaOrigin), ...extra }).end(typeof html === 'function' ? html(nonce) : html); };
 
       // 로그인: 토큰을 POST 본문으로 받아 세션 쿠키를 심는다
@@ -262,11 +288,21 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
         if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' }, { Allow: 'POST' }), true;
         if (!sameOrigin(req)) return send(res, 403, { error: 'forbidden' }), true;
         const body = await readForm(req);
-        if (dashboardToken && typeof body.token === 'string' && sameToken(body.token, dashboardToken)) {
-          return res.writeHead(303, { Location: '/harness', 'Set-Cookie': setCookie(req, url, makeSession(dashboardToken), SESSION_MS / 1000), 'Cache-Control': 'no-store' }).end(), true;
+        const userMode = await hasAdmins();
+        let sessionValue = null;
+        if (dashboardToken && userMode) {
+          // 계정은 harness_admins 테이블. 없는 아이디도 같은 시간이 걸리도록 항상 해시를 비교한다
+          const name = typeof body.username === 'string' ? body.username.trim().toLowerCase() : '';
+          const admin = USERNAME_RE.test(name) ? await store.getAdmin(name).catch(() => null) : null;
+          if (await verifyPassword(body.password, admin?.password_hash) && admin) sessionValue = makeSession(dashboardToken, admin.username, fingerprint(admin.password_hash));
+        } else if (dashboardToken && !userMode && typeof body.token === 'string' && sameToken(body.token, dashboardToken)) {
+          sessionValue = makeSession(dashboardToken, TOKEN_USER); // 계정을 만들기 전의 최초 설정용
+        }
+        if (sessionValue) {
+          return res.writeHead(303, { Location: '/harness', 'Set-Cookie': setCookie(req, url, sessionValue, SESSION_MS / 1000), 'Cache-Control': 'no-store' }).end(), true;
         }
         await new Promise((r) => setTimeout(r, 400)); // 무차별 대입을 조금 늦춘다
-        return page(403, (nonce) => loginPage(nonce, '토큰이 맞지 않아요.')), true;
+        return page(403, (nonce) => loginPage(nonce, userMode ? '아이디 또는 비밀번호가 맞지 않아요.' : '토큰이 맞지 않아요.', userMode)), true;
       }
       if (path === '/harness/logout') {
         if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' }, { Allow: 'POST' }), true;
@@ -277,7 +313,7 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
       // 대시보드 페이지: 로그인 전에는 로그인 폼
       if (isPage) {
         if (req.method !== 'GET') return send(res, 405, { error: 'method not allowed' }, { Allow: 'GET' }), true;
-        if (who !== 'dashboard') return page(200, (nonce) => loginPage(nonce)), true;
+        if (who !== 'dashboard') { const userMode = await hasAdmins(); return page(200, (nonce) => loginPage(nonce, undefined, userMode)), true; }
         const html = pageHtml ?? await readFile(pageUrl, 'utf8');
         return page(200, (nonce) => html.replaceAll('__NONCE__', nonce)), true;
       }

@@ -5,7 +5,7 @@ import { SupabaseError } from './supabase.js';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const clone = (v) => structuredClone(v);
 
-export function createMemoryStore({ sections = [], agents = [], widgets = [], motions = [], tasks = [] } = {}) {
+export function createMemoryStore({ sections = [], agents = [], widgets = [], motions = [], tasks = [], admins = [] } = {}) {
   let tick = 0;
   let eventId = 0;
   const stamp = () => new Date(Date.now() + tick++).toISOString(); // 호출마다 달라지는 updated_at
@@ -16,6 +16,7 @@ export function createMemoryStore({ sections = [], agents = [], widgets = [], mo
     events: [],
     tasks: tasks.map((t) => ({ id: randomUUID(), status: 'queued', created_at: stamp(), claimed_at: null, closed_at: null, ...t })),
     motions: motions.slice(),
+    admins: admins.map((a) => ({ ...a })),
   };
   const sectionBy = (ref) => db.sections.find((s) => (UUID_RE.test(String(ref)) ? s.id === ref : s.name === ref));
 
@@ -62,6 +63,13 @@ export function createMemoryStore({ sections = [], agents = [], widgets = [], mo
     },
     async listTasks({ agent, status, limit = 50 } = {}) {
       return clone(db.tasks.filter((t) => (!agent || t.agent_id === agent) && (!status || t.status === status)).sort((a, b) => (a.created_at < b.created_at ? -1 : 1)).slice(0, limit));
+    },
+    async getAdmin(username) { const a = db.admins.find((x) => x.username === username); return a ? { username: a.username, password_hash: a.password_hash } : null; },
+    async countAdmins() { return db.admins.length; },
+    async upsertAdmin(username, passwordHash) {
+      const a = db.admins.find((x) => x.username === username);
+      if (a) a.password_hash = passwordHash; else db.admins.push({ username, password_hash: passwordHash });
+      return { username };
     },
     async countQueued(agent) { return db.tasks.filter((t) => t.agent_id === agent && t.status === 'queued').length; },
     async createTask(row) { const t = { id: randomUUID(), status: 'queued', created_at: stamp(), claimed_at: null, closed_at: null, ...clone(row) }; db.tasks.push(t); return clone(t); },
