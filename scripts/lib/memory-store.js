@@ -5,7 +5,7 @@ import { SupabaseError } from './supabase.js';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const clone = (v) => structuredClone(v);
 
-export function createMemoryStore({ sections = [], agents = [], widgets = [], motions = [] } = {}) {
+export function createMemoryStore({ sections = [], agents = [], widgets = [], motions = [], tasks = [] } = {}) {
   let tick = 0;
   let eventId = 0;
   const stamp = () => new Date(Date.now() + tick++).toISOString(); // 호출마다 달라지는 updated_at
@@ -14,6 +14,7 @@ export function createMemoryStore({ sections = [], agents = [], widgets = [], mo
     agents: agents.map((a) => ({ steps: [], progress: 0, status: 'waiting', task: '', note: '', section_id: null, archived_at: null, last_report_at: null, created_at: stamp(), updated_at: stamp(), ...a })),
     widgets: widgets.map((w) => ({ id: randomUUID(), size: null, sort: 0, data: {}, created_at: stamp(), updated_at: stamp(), ...w })),
     events: [],
+    tasks: tasks.map((t) => ({ id: randomUUID(), status: 'queued', created_at: stamp(), claimed_at: null, closed_at: null, ...t })),
     motions: motions.slice(),
   };
   const sectionBy = (ref) => db.sections.find((s) => (UUID_RE.test(String(ref)) ? s.id === ref : s.name === ref));
@@ -23,8 +24,9 @@ export function createMemoryStore({ sections = [], agents = [], widgets = [], mo
     async snapshot() {
       return clone({
         sections: db.sections, widgets: db.widgets, agents: db.agents.filter((a) => !a.archived_at),
-        events: db.events.slice().sort((a, b) => b.id - a.id).slice(0, 60),
+        events: db.events.slice().sort((a, b) => b.id - a.id).slice(0, 200),
         motions: db.motions.filter((m) => m.storage_path),
+        tasks: db.tasks.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 200),
       });
     },
     async getAgent(id) { return clone(db.agents.find((a) => a.id === id) ?? null); },
@@ -57,6 +59,29 @@ export function createMemoryStore({ sections = [], agents = [], widgets = [], mo
       const w = { id: randomUUID(), size: null, sort: 0, data: {}, created_at: stamp(), updated_at: stamp(), ...clone(row) };
       db.widgets.push(w);
       return clone(w);
+    },
+    async listTasks({ agent, status, limit = 50 } = {}) {
+      return clone(db.tasks.filter((t) => (!agent || t.agent_id === agent) && (!status || t.status === status)).sort((a, b) => (a.created_at < b.created_at ? -1 : 1)).slice(0, limit));
+    },
+    async countQueued(agent) { return db.tasks.filter((t) => t.agent_id === agent && t.status === 'queued').length; },
+    async createTask(row) { const t = { id: randomUUID(), status: 'queued', created_at: stamp(), claimed_at: null, closed_at: null, ...clone(row) }; db.tasks.push(t); return clone(t); },
+    async getTask(id) { return clone(db.tasks.find((t) => t.id === id) ?? null); },
+    async updateTask(id, patch, ifStatus) {
+      const t = db.tasks.find((x) => x.id === id && x.status === ifStatus);
+      if (!t) return [];
+      Object.assign(t, clone(patch));
+      return [clone(t)];
+    },
+    async claimNextTask(agent) {
+      const t = db.tasks.filter((x) => x.agent_id === agent && x.status === 'queued').sort((a, b) => (a.created_at < b.created_at ? -1 : 1))[0];
+      if (!t) return null;
+      Object.assign(t, { status: 'claimed', claimed_at: new Date().toISOString() });
+      return clone(t);
+    },
+    async closeClaimed(agent, status) {
+      const rows = db.tasks.filter((x) => x.agent_id === agent && x.status === 'claimed');
+      rows.forEach((t) => Object.assign(t, { status, closed_at: new Date().toISOString() }));
+      return clone(rows);
     },
     async motionUrl(agentId, state) {
       const m = db.motions.find((x) => x.agent_id === agentId && x.state === state && x.storage_path);

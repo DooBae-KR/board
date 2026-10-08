@@ -7,7 +7,7 @@
 // 쓰기는 모두 서버가 service_role로 한다. 브라우저는 Supabase에 직접 닿지 않는다 (CLAUDE.md 2-3).
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { HarnessError, MOTION_STATES, ID_RE } from '../scripts/lib/harness.js';
+import { HarnessError, MOTION_STATES, ID_RE, looksSecret } from '../scripts/lib/harness.js';
 import { runReport } from '../scripts/lib/report.js';
 
 const COLORS = ['lavender', 'pink', 'mint', 'peach', 'sky'];
@@ -15,6 +15,10 @@ const WIDGET_TYPES = ['kpi', 'donut', 'bars', 'line', 'list', 'feed'];
 const WIDGET_SIZES = ['full', 'half', 'third'];
 const STALE_MS = 60 * 60 * 1000; // 작업 중인데 60분 넘게 보고가 없으면 "응답 없음" (CLAUDE.md 6장)
 const BODY_LIMIT = 64 * 1024;
+const TASK_MAX = 2000;
+const QUEUE_MAX = 20; // 에이전트 한 명의 대기 작업 상한(한꺼번에 쌓이는 것을 막는다)
+const TASK_NEXT = { queued: ['claimed', 'cancelled'], claimed: ['done', 'failed', 'cancelled'] };
+const TASK_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/; // 줄바꿈·탭은 허용
 
 const digest = (s) => createHash('sha256').update(String(s)).digest();
 const sameToken = (a, b) => !!a && !!b && timingSafeEqual(digest(a), digest(b));
@@ -107,6 +111,7 @@ export function buildSnapshot(raw, now = Date.now()) {
       clips: clips.get(a.id) ?? [], moved_at: moved.get(a.id) ?? null,
       stale: a.status === 'working' && !!a.last_report_at && now - Date.parse(a.last_report_at) > STALE_MS,
     })),
+    tasks: (raw.tasks ?? []).map(({ id, agent_id, body, status, created_at, claimed_at, closed_at }) => ({ id, agent_id, body, status, created_at, claimed_at, closed_at })),
     events: raw.events.map(({ id, agent_id, kind, message, from_section, to_section, output, created_at }) => ({ id, agent_id, kind, message, from_section, to_section, output, created_at })),
   };
 }
@@ -175,6 +180,40 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
       return send(res, 200, out);
     },
 
+    async 'GET /api/harness/tasks'(req, res, url) {
+      const agent = url.searchParams.get('agent') ?? '';
+      const status = url.searchParams.get('status') ?? '';
+      if (agent && !ID_RE.test(agent)) throw new HarnessError('agent가 올바르지 않습니다');
+      if (status && !['queued', 'claimed', 'done', 'failed', 'cancelled'].includes(status)) throw new HarnessError('status가 올바르지 않습니다');
+      return send(res, 200, { tasks: await store.listTasks({ agent: agent || undefined, status: status || undefined }) });
+    },
+
+    /** 사람이 대화창에 적은 작업을 에이전트 요청함에 넣는다 */
+    async 'POST /api/harness/tasks'(req, res) {
+      const b = await readJson(req);
+      if (typeof b.agent !== 'string' || !ID_RE.test(b.agent)) throw new HarnessError('agent가 필요합니다');
+      if (typeof b.body !== 'string') throw new HarnessError('body는 문자열이어야 합니다');
+      const body = b.body.trim();
+      if (!body) throw new HarnessError('작업 내용을 적어 주세요');
+      if (body.length > TASK_MAX) throw new HarnessError(`작업 내용은 ${TASK_MAX}자 이하여야 합니다`);
+      if (TASK_CONTROL.test(body)) throw new HarnessError('작업 내용에 쓸 수 없는 문자가 있습니다');
+      if (looksSecret(body)) throw new HarnessError('토큰·키로 보이는 값이 있어 저장하지 않았습니다. 비밀값은 작업 내용에 적지 마세요');
+      const agent = await store.getAgent(b.agent);
+      if (!agent || agent.archived_at) throw new HarnessError(`에이전트 "${b.agent}"를 찾지 못했습니다`, 404);
+      if (await store.countQueued(b.agent) >= QUEUE_MAX) throw new HarnessError(`${agent.name}에게 대기 중인 작업이 ${QUEUE_MAX}개 있습니다. 먼저 처리하거나 취소해 주세요`, 409);
+      const t = await store.createTask({ agent_id: b.agent, body });
+      return send(res, 201, { id: t.id, status: t.status });
+    },
+
+    /** 에이전트가 자기 요청함에서 가장 오래된 작업 하나를 가져간다(진행 중으로 바뀜). 없으면 task: null */
+    async 'POST /api/harness/tasks/next'(req, res) {
+      const b = await readJson(req);
+      if (typeof b.agent !== 'string' || !ID_RE.test(b.agent)) throw new HarnessError('agent가 필요합니다');
+      if (!(await store.getAgent(b.agent))) throw new HarnessError(`에이전트 "${b.agent}"가 없습니다`, 404);
+      const t = await store.claimNextTask(b.agent);
+      return send(res, 200, { task: t ? { id: t.id, agent_id: t.agent_id, body: t.body, created_at: t.created_at } : null });
+    },
+
     async 'POST /api/harness/sections'(req, res) {
       const b = await readJson(req);
       const name = str(b.name, 'name', { min: 1, max: 40 });
@@ -206,7 +245,7 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
   };
 
   /** 사람(DASHBOARD_TOKEN)만 쓸 수 있는 동작 */
-  const dashboardOnly = new Set(['DELETE /api/harness/sections/:id']);
+  const dashboardOnly = new Set(['POST /api/harness/tasks']);
 
   async function handle(req, res, url) {
     const path = url.pathname.replace(/\/+$/, '') || '/';
@@ -260,6 +299,21 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
         return res.writeHead(302, { Location: target, 'Cache-Control': 'private, max-age=300', 'Referrer-Policy': 'no-referrer' }).end(), true;
       }
 
+      // 작업 상태 변경: queued→claimed|cancelled, claimed→done|failed|cancelled
+      const taskPatch = /^\/api\/harness\/tasks\/([0-9a-fA-F-]{36})$/.exec(path);
+      if (taskPatch) {
+        if (req.method !== 'PATCH') return send(res, 405, { error: 'method not allowed' }, { Allow: 'PATCH' }), true;
+        const b = await readJson(req);
+        const t = await store.getTask(taskPatch[1]);
+        if (!t) return send(res, 404, { error: 'task not found' }), true;
+        if (!(TASK_NEXT[t.status] ?? []).includes(b.status)) throw new HarnessError(`'${t.status}' 상태의 작업은 '${b.status}'(으)로 바꿀 수 없습니다`, 409);
+        const now = new Date().toISOString();
+        const patch = { status: b.status, ...(b.status === 'claimed' ? { claimed_at: now } : { closed_at: now }) };
+        const rows = await store.updateTask(t.id, patch, t.status);
+        if (!rows.length) throw new HarnessError('같은 작업이 동시에 바뀌었습니다. 다시 시도하세요', 409);
+        return send(res, 200, { id: t.id, status: rows[0].status }), true;
+      }
+
       // 섹션 삭제
       const del = /^\/api\/harness\/sections\/([0-9a-fA-F-]{36})$/.exec(path);
       if (del) {
@@ -275,7 +329,7 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
         return send(res, known ? 405 : 404, { error: known ? 'method not allowed' : 'not found' }), true;
       }
       if (dashboardOnly.has(`${req.method} ${path}`) && who !== 'dashboard') return send(res, 403, { error: 'forbidden' }), true;
-      await route(req, res);
+      await route(req, res, url);
     } catch (e) {
       if (e instanceof HarnessError) {
         if (e.status === 413) res.setHeader('Connection', 'close');

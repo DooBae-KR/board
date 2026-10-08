@@ -9,6 +9,7 @@
 //   node scripts/harness-report.js <id> fail     "원인"
 //   node scripts/harness-report.js <id> assign   "부서 이름|대기실" ["새 업무"]
 //   node scripts/harness-report.js <id> info     "메모"
+//   node scripts/harness-report.js <id> next                             (대시보드 '작업 지시'에서 받은 다음 작업을 가져온다. 가져오면 '진행 중')
 // 전달 방식 (자동 선택)
 //   HARNESS_API_URL + HARNESS_API_TOKEN 이 있으면 서버 API(POST /api/harness/report)로 보낸다 → 에이전트(Actor)용.
 //   없으면 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY로 직접 쓴다 → 서버 관리자·로컬 개발용.
@@ -19,8 +20,8 @@ const flag = (name) => { const i = argv.indexOf(name); if (i < 0) return null; c
 const stepsArg = flag('--steps');
 const [agent, kind, a1, a2] = argv;
 
-if (!agent || !REPORT_KINDS.includes(kind)) {
-  console.error(`usage: harness-report.js <agent-id> <${REPORT_KINDS.join('|')}> ...  (CLAUDE.md 6장 참고)`);
+if (!agent || !(kind === 'next' || REPORT_KINDS.includes(kind))) {
+  console.error(`usage: harness-report.js <agent-id> <${[...REPORT_KINDS, 'next'].join('|')}> ...  (CLAUDE.md 6장 참고)`);
   process.exit(1);
 }
 
@@ -31,20 +32,41 @@ if (kind === 'done') input.output = a2;
 if (kind === 'assign') Object.assign(input, { section: a1 ?? '', task: a2, message: '' });
 
 const { HARNESS_API_URL, HARNESS_API_TOKEN } = process.env;
+
+// 서버 API로 보낼 때는 요청마다 새로 연결한다 (복원된 Actor에서도 안전, CLAUDE.md 4-3)
+async function callApi(path, body) {
+  if (!HARNESS_API_TOKEN) throw new Error('HARNESS_API_URL을 쓰려면 HARNESS_API_TOKEN도 필요합니다');
+  const res = await fetch(new URL(path, HARNESS_API_URL), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${HARNESS_API_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000),
+  });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error || `서버가 ${res.status}로 응답했습니다`);
+  return out;
+}
+
+if (kind === 'next') {
+  try {
+    let task;
+    if (HARNESS_API_URL) ({ task } = await callApi('/api/harness/tasks/next', { agent }));
+    else {
+      const [{ createClient }, { createStore }] = await Promise.all([import('./lib/supabase.js'), import('./lib/store.js')]);
+      task = await createStore(createClient()).claimNextTask(agent);
+    }
+    console.log(task ? `작업 ${task.id}\n${task.body}` : '대기 중인 작업이 없습니다');
+  } catch (e) {
+    console.error(e.message);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 try {
   let out;
   if (HARNESS_API_URL) {
-    if (!HARNESS_API_TOKEN) throw new Error('HARNESS_API_URL을 쓰려면 HARNESS_API_TOKEN도 필요합니다');
-    // 복원된 Actor에서도 안전하도록 요청마다 새로 연결한다 (CLAUDE.md 4-3)
-    const res = await fetch(new URL('/api/harness/report', HARNESS_API_URL), {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${HARNESS_API_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-      signal: AbortSignal.timeout(15_000),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error || `서버가 ${res.status}로 응답했습니다`);
-    out = body;
+    out = await callApi('/api/harness/report', input);
   } else {
     const [{ createClient }, { createStore }, { runReport }] = await Promise.all([
       import('./lib/supabase.js'), import('./lib/store.js'), import('./lib/report.js'),
