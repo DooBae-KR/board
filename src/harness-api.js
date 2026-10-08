@@ -1,10 +1,11 @@
 // 하네스 서버 API와 대시보드 페이지 (/harness, /api/harness/*).
 //
-// 인증은 Bearer 토큰 두 종류다 (GET은 ?token= 도 허용: 브라우저 주소창·<video> 용).
-//   DASHBOARD_TOKEN    사람(대시보드): 읽기, 보고, 섹션 추가·삭제, 위젯 갱신
-//   HARNESS_API_TOKEN  에이전트(Agent Substrate Actor): 보고, 섹션 추가, 위젯 갱신
+// 토큰은 주소(URL)에 싣지 않는다. 기록·히스토리·Referer에 남기 때문이다.
+//   DASHBOARD_TOKEN    사람(대시보드): /harness 로그인 폼에 입력(POST) → HttpOnly 세션 쿠키. 읽기, 보고, 섹션 추가·삭제, 위젯 갱신
+//   HARNESS_API_TOKEN  에이전트(Agent Substrate Actor): Authorization: Bearer 헤더. 보고, 섹션 추가, 위젯 갱신
+// 쿠키 세션은 DASHBOARD_TOKEN으로 서명한 값이라 서버에 저장하지 않고, 토큰을 바꾸면 모든 세션이 무효가 된다.
 // 쓰기는 모두 서버가 service_role로 한다. 브라우저는 Supabase에 직접 닿지 않는다 (CLAUDE.md 2-3).
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { HarnessError, MOTION_STATES, ID_RE } from '../scripts/lib/harness.js';
 import { runReport } from '../scripts/lib/report.js';
@@ -18,6 +19,45 @@ const BODY_LIMIT = 64 * 1024;
 const digest = (s) => createHash('sha256').update(String(s)).digest();
 const sameToken = (a, b) => !!a && !!b && timingSafeEqual(digest(a), digest(b));
 const CONTROL = /[\u0000-\u001f\u007f]/;
+
+const COOKIE = 'harness_session';
+const SESSION_MS = 12 * 60 * 60 * 1000;
+const sign = (key, exp) => createHmac('sha256', key).update(`harness-session:v1:${exp}`).digest('base64url');
+const makeSession = (key, now = Date.now()) => { const exp = now + SESSION_MS; return `${exp}.${sign(key, exp)}`; };
+function validSession(key, value, now = Date.now()) {
+  if (!key || !value) return false;
+  const [exp, sig] = String(value).split('.');
+  if (!/^\d{10,15}$/.test(exp || '') || !sig || Number(exp) < now) return false;
+  return sameToken(sig, sign(key, exp));
+}
+const cookieOf = (req, name) => (req.headers.cookie ?? '').split(';').map((c) => c.trim().split(/=(.*)/s)).find(([k]) => k === name)?.[1];
+/** 쿠키로 인증된 쓰기 요청은 같은 출처에서 온 것만 받는다(CSRF 방어. SameSite=Strict와 함께 이중으로) */
+function sameOrigin(req) {
+  const site = req.headers['sec-fetch-site'];
+  if (site) return site === 'same-origin';
+  const { origin, host } = req.headers;
+  if (origin && host) { try { return new URL(origin).host === host; } catch { return false; } }
+  return false;
+}
+const isSecure = (req, url) => url.protocol === 'https:' || req.headers['x-forwarded-proto'] === 'https';
+const setCookie = (req, url, value, maxAge) => `${COOKIE}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${isSecure(req, url) ? '; Secure' : ''}`;
+
+async function readForm(req) {
+  const chunks = []; let size = 0;
+  for await (const c of req) { size += c.length; if (size > 4096) throw new HarnessError('요청 본문이 너무 큽니다', 413); chunks.push(c); }
+  const raw = Buffer.concat(chunks).toString('utf8');
+  if ((req.headers['content-type'] ?? '').includes('json')) { try { return JSON.parse(raw) ?? {}; } catch { return {}; } }
+  return Object.fromEntries(new URLSearchParams(raw));
+}
+
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const loginPage = (nonce, error) => `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>하네스 로그인</title>
+<style nonce="${nonce}">body{margin:0;min-height:100vh;display:grid;place-items:center;background:#F2F0FA;color:#2C2852;font:16px/1.5 system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+form{background:#fff;border:1px solid #D9D3F1;border-radius:16px;padding:28px;width:min(360px,calc(100% - 32px));display:grid;gap:14px}
+h1{margin:0;font-size:22px}input{padding:10px 12px;border:1px solid #D9D3F1;border-radius:10px;font:inherit;width:100%;box-sizing:border-box}
+button{padding:10px;border:0;border-radius:10px;background:#6F62D2;color:#fff;font:inherit;cursor:pointer}.err{color:#D4506A;margin:0;font-size:14px}p{margin:0;color:#6E6896;font-size:14px}</style></head>
+<body><form method="post" action="/harness/login"><h1>하네스 대시보드</h1><p>대시보드 토큰을 입력하세요. 주소에는 남지 않아요.</p>
+<input type="password" name="token" autocomplete="current-password" aria-label="대시보드 토큰" required autofocus>${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}<button type="submit">들어가기</button></form></body></html>`;
 
 /** 응답에 쓰는 동시에 열린 요청 본문은 버린다 */
 function send(res, code, body, headers = {}) {
@@ -81,7 +121,7 @@ function pageHeaders(nonce, mediaOrigin) {
     "img-src 'self' data:",
     `media-src 'self'${mediaOrigin ? ` ${mediaOrigin}` : ''}`,
     "connect-src 'self'",
-    "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
+    "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
   ].join('; ');
   return {
     'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': csp,
@@ -103,12 +143,16 @@ function pageHeaders(nonce, mediaOrigin) {
 export function createHarnessApi({ store, dashboardToken, agentToken, sprites, pageUrl, pageHtml, supabaseUrl, onError = console.error }) {
   const mediaOrigin = supabaseUrl ? new URL(supabaseUrl).origin : '';
 
-  const level = (req, url) => {
+  /** 인증 결과: 에이전트·스크립트는 Bearer 헤더, 사람은 로그인 쿠키. 주소의 ?token= 은 받지 않는다 */
+  const auth = (req) => {
     const bearer = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? '')?.[1]?.trim();
-    const t = bearer || (req.method === 'GET' ? url.searchParams.get('token') : '') || '';
-    if (sameToken(t, dashboardToken)) return 'dashboard';
-    if (sameToken(t, agentToken)) return 'agent';
-    return null;
+    if (bearer) {
+      if (sameToken(bearer, dashboardToken)) return { who: 'dashboard' };
+      if (sameToken(bearer, agentToken)) return { who: 'agent' };
+      return { who: null };
+    }
+    if (validSession(dashboardToken, cookieOf(req, COOKIE))) return { who: 'dashboard', viaCookie: true };
+    return { who: null };
   };
 
   const section = async (ref, field = 'section') => {
@@ -167,20 +211,40 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
   async function handle(req, res, url) {
     const path = url.pathname.replace(/\/+$/, '') || '/';
     const isPage = path === '/harness';
-    if (!isPage && path !== '/api/harness' && !path.startsWith('/api/harness/')) return false;
+    const isAuthPath = path === '/harness/login' || path === '/harness/logout';
+    if (!isPage && !isAuthPath && path !== '/api/harness' && !path.startsWith('/api/harness/')) return false;
 
     try {
-      const who = level(req, url);
-      if (!who) return send(res, 403, { error: 'forbidden' }), true;
+      const { who, viaCookie } = auth(req);
+      const page = (code, html, extra = {}) => { const nonce = randomBytes(16).toString('base64'); return res.writeHead(code, { ...pageHeaders(nonce, mediaOrigin), ...extra }).end(typeof html === 'function' ? html(nonce) : html); };
 
-      // 대시보드 페이지
+      // 로그인: 토큰을 POST 본문으로 받아 세션 쿠키를 심는다
+      if (path === '/harness/login') {
+        if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' }, { Allow: 'POST' }), true;
+        if (!sameOrigin(req)) return send(res, 403, { error: 'forbidden' }), true;
+        const body = await readForm(req);
+        if (dashboardToken && typeof body.token === 'string' && sameToken(body.token, dashboardToken)) {
+          return res.writeHead(303, { Location: '/harness', 'Set-Cookie': setCookie(req, url, makeSession(dashboardToken), SESSION_MS / 1000), 'Cache-Control': 'no-store' }).end(), true;
+        }
+        await new Promise((r) => setTimeout(r, 400)); // 무차별 대입을 조금 늦춘다
+        return page(403, (nonce) => loginPage(nonce, '토큰이 맞지 않아요.')), true;
+      }
+      if (path === '/harness/logout') {
+        if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' }, { Allow: 'POST' }), true;
+        if (!sameOrigin(req)) return send(res, 403, { error: 'forbidden' }), true;
+        return send(res, 200, { ok: true }, { 'Set-Cookie': setCookie(req, url, '', 0) }), true;
+      }
+
+      // 대시보드 페이지: 로그인 전에는 로그인 폼
       if (isPage) {
         if (req.method !== 'GET') return send(res, 405, { error: 'method not allowed' }, { Allow: 'GET' }), true;
-        if (who !== 'dashboard') return send(res, 403, { error: 'forbidden' }), true;
-        const nonce = randomBytes(16).toString('base64');
-        const html = (pageHtml ?? await readFile(pageUrl, 'utf8')).replaceAll('__NONCE__', nonce);
-        return res.writeHead(200, pageHeaders(nonce, mediaOrigin)).end(html), true;
+        if (who !== 'dashboard') return page(200, (nonce) => loginPage(nonce)), true;
+        const html = pageHtml ?? await readFile(pageUrl, 'utf8');
+        return page(200, (nonce) => html.replaceAll('__NONCE__', nonce)), true;
       }
+
+      if (!who) return send(res, 403, { error: 'forbidden' }), true;
+      if (viaCookie && !['GET', 'HEAD'].includes(req.method) && !sameOrigin(req)) return send(res, 403, { error: 'forbidden' }), true;
 
       if (!store) return send(res, 503, { error: 'harness is not configured (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)' }), true;
 

@@ -79,13 +79,16 @@ node scripts/harness-report.js <id> assign  "부서 이름" ["새 업무"]
 
 | 경로 | 토큰 | 용도 |
 |---|---|---|
-| `GET /harness` | `DASHBOARD_TOKEN` | 대시보드 페이지 (`?token=`) |
-| `GET /api/harness` | 위와 같음 | 전체 상태 (ETag) |
-| `POST /api/harness/report` | 대시보드 또는 `HARNESS_API_TOKEN` | 진행 보고 (6장 종류와 같음) |
+| `GET /harness` | 로그인 쿠키 | 대시보드 페이지. 로그인 전에는 로그인 폼 |
+| `POST /harness/login` · `/harness/logout` | `DASHBOARD_TOKEN`(본문) | 토큰을 POST 본문으로 받아 HttpOnly 세션 쿠키(12시간, 토큰으로 서명)를 심고/지운다 |
+| `GET /api/harness` | 로그인 쿠키 또는 `DASHBOARD_TOKEN` Bearer | 전체 상태 (ETag) |
+| `POST /api/harness/report` | 대시보드(쿠키·Bearer) 또는 `HARNESS_API_TOKEN` Bearer | 진행 보고 (6장 종류와 같음) |
 | `POST /api/harness/sections` | 대시보드 또는 에이전트 | 섹션 추가 → 메뉴에 동적으로 생김 |
 | `PUT /api/harness/widgets` | 대시보드 또는 에이전트 | 섹션 위젯 갱신 (섹션+제목이 같으면 덮어씀) |
-| `DELETE /api/harness/sections/:id` | `DASHBOARD_TOKEN`만 | 섹션 삭제 |
-| `GET /api/harness/motion/:id/:state` | `DASHBOARD_TOKEN` | 렌더된 모션 클립(서명 URL로 이동) |
+| `DELETE /api/harness/sections/:id` | 대시보드(쿠키·Bearer)만 | 섹션 삭제 |
+| `GET /api/harness/motion/:id/:state` | 대시보드(쿠키·Bearer) | 렌더된 모션 클립(서명 URL로 이동) |
+
+토큰은 주소(URL)에 싣지 않는다(기록·히스토리·Referer에 남기 때문). 쿠키로 인증한 쓰기 요청은 같은 출처(`Sec-Fetch-Site`/`Origin`)만 받는다. `DASHBOARD_TOKEN`을 바꾸면 기존 세션이 모두 무효가 된다.
 
 환경변수: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DASHBOARD_TOKEN`, `HARNESS_API_TOKEN`. 에이전트 쪽은 `HARNESS_API_URL` + `HARNESS_API_TOKEN`을 두면 `harness-report.js`가 서버로 보낸다.
 
