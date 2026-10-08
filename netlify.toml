@@ -11,7 +11,7 @@
 # 사이트 설정 → Environment variables (Functions·Builds 범위)
 #   SUPABASE_URL                https://<프로젝트ref>.supabase.co
 #   SUPABASE_SERVICE_ROLE_KEY   Secret으로 표시. 브라우저로는 나가지 않는다
-#   DASHBOARD_TOKEN             사람용: /harness?token=...
+#   DASHBOARD_TOKEN             사람용: /harness 로그인 폼에 입력
 #   HARNESS_API_TOKEN           에이전트용
 #   VERIFY_TOKEN, APP_SECRET    메타 웹훅 확인 토큰·앱 시크릿 (APP_SECRET이 없으면 웹훅은 거부된다)
 #   IG_KO_USER_ID, IG_KO_ACCESS_TOKEN (영어 계정이면 IG_EN_*)   접근 토큰은 Secret으로 표시

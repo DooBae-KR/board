@@ -10,8 +10,13 @@ const api = () => createHarnessApi({
 });
 const req = (path, init = {}) => new Request('https://samgukji.netlify.app' + path, init);
 
-test('페이지: pageHtml에 nonce를 넣어 CSP와 함께 돌려준다', async () => {
-  const res = await handleRequest(api(), req('/harness?token=d'));
+test('로그인(POST)으로 받은 쿠키로 pageHtml에 nonce를 넣어 돌려준다', async () => {
+  const a = api();
+  const login = await handleRequest(a, req('/harness/login', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Sec-Fetch-Site': 'same-origin' }, body: 'token=d' }));
+  assert.equal(login.status, 303);
+  const cookie = login.headers.get('set-cookie').split(';')[0];
+  assert.match(login.headers.get('set-cookie'), /Secure/); // https 주소이므로
+  const res = await handleRequest(a, req('/harness', { headers: { Cookie: cookie } }));
   assert.equal(res.status, 200);
   const nonce = /'nonce-([^']+)'/.exec(res.headers.get('content-security-policy'))[1];
   assert.equal(await res.text(), `<script nonce="${nonce}"></script>`);
@@ -28,7 +33,7 @@ test('304와 302는 본문 없이, 403은 JSON으로', async () => {
   const first = await handleRequest(a, req('/api/harness', { headers: { Authorization: 'Bearer d' } }));
   const etag = first.headers.get('etag');
   assert.equal((await handleRequest(a, req('/api/harness', { headers: { Authorization: 'Bearer d', 'If-None-Match': etag } }))).status, 304);
-  const red = await handleRequest(a, req('/api/harness/motion/lumi/working?token=d'));
+  const red = await handleRequest(a, req('/api/harness/motion/lumi/working', { headers: { Authorization: 'Bearer d' } }));
   assert.equal(red.status, 302);
   assert.match(red.headers.get('location'), /^https:\/\//);
   const no = await handleRequest(a, req('/api/harness'));

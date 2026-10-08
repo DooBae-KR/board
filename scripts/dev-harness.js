@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // 로컬 미리보기: Supabase 없이 메모리 저장소로 /harness 대시보드를 띄운다. 재시작하면 초기화된다.
-//   node scripts/dev-harness.js   →  http://127.0.0.1:3100/harness?token=dev
+//   node scripts/dev-harness.js   →  http://127.0.0.1:3100/harness  (로그인 토큰: dev)
 import { createServer } from 'node:http';
 import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -32,4 +32,4 @@ createServer(async (req, res) => {
   const m = url.pathname.match(/^\/assets\/char\/([a-z]+)\.png$/);
   if (m) { try { const { readFileSync } = await import('node:fs'); return res.writeHead(200, { 'Content-Type': 'image/png' }).end(readFileSync(join(root, 'src/assets/char', m[1] + '.png'))); } catch { return res.writeHead(404).end(); } }
   if (!(await api.handle(req, res, url))) res.writeHead(404).end();
-}).listen(3100, '127.0.0.1', () => console.log('http://127.0.0.1:3100/harness?token=dev  (에이전트 토큰: dev-agent)'));
+}).listen(3100, '127.0.0.1', () => console.log('http://127.0.0.1:3100/harness  (로그인 토큰: dev, 에이전트 토큰: dev-agent)'));

@@ -39,7 +39,7 @@ test('토큰이 없거나 틀리면 403, 라우트 밖 경로는 처리하지 �
 
 test('스냅샷은 대시보드 토큰으로 읽고, 내부 값(md_sha256)은 내보내지 않으며 ETag로 304를 준다', async () => {
   const t = await boot();
-  const res = await t.call('GET', '/api/harness?token=' + DASH);
+  const res = await t.call('GET', '/api/harness', { token: DASH });
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.agents[0].id, 'lumi');
@@ -132,27 +132,92 @@ test('섹션 삭제는 대시보드 토큰만, 소속 에이전트는 대기실�
 
 test('모션: 클립이 있으면 서명 URL로 302, 없으면 404, 에이전트 토큰은 403', async () => {
   const t = await boot();
-  const hit = await t.call('GET', '/api/harness/motion/lumi/working?token=' + DASH);
+  const hit = await t.call('GET', '/api/harness/motion/lumi/working', { token: DASH });
   assert.equal(hit.status, 302);
   assert.match(hit.headers.get('location'), /^https:\/\/storage\.example\.test\//);
-  assert.equal((await t.call('GET', '/api/harness/motion/lumi/idle?token=' + DASH)).status, 404);
-  assert.equal((await t.call('GET', '/api/harness/motion/lumi/bogus?token=' + DASH)).status, 404);
+  assert.equal((await t.call('GET', '/api/harness/motion/lumi/idle', { token: DASH })).status, 404);
+  assert.equal((await t.call('GET', '/api/harness/motion/lumi/bogus', { token: DASH })).status, 404);
   assert.equal((await t.call('GET', '/api/harness/motion/lumi/working', { token: AGENT })).status, 403);
   t.close();
 });
 
-test('대시보드 페이지: nonce가 CSP와 스크립트에 같이 들어가고, 에이전트 토큰은 못 연다', async () => {
+const login = async (t, token = DASH) => {
+  const res = await t.call('POST', '/harness/login', { body: new URLSearchParams({ token }).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Sec-Fetch-Site': 'same-origin' } });
+  return { res, cookie: (res.headers.get('set-cookie') ?? '').split(';')[0] };
+};
+
+test('로그인 전 /harness는 로그인 폼, 주소의 ?token=은 무시한다', async () => {
   const t = await boot();
   const res = await t.call('GET', '/harness?token=' + DASH);
   assert.equal(res.status, 200);
-  const csp = res.headers.get('content-security-policy');
-  const nonce = /'nonce-([^']+)'/.exec(csp)[1];
   const html = await res.text();
-  assert.ok(html.includes(`<script nonce="${nonce}">`));
-  assert.ok(!html.includes('__NONCE__'));
+  assert.match(html, /<form method="post" action="\/harness\/login">/);
+  assert.ok(!html.includes('const state ='), '대시보드 본문이 나오면 안 된다');
+  assert.equal((await t.call('GET', '/api/harness?token=' + DASH)).status, 403); // 쿼리 토큰은 API에서도 받지 않는다
+  t.close();
+});
+
+test('로그인(POST): 맞는 토큰이면 HttpOnly 쿠키, 그 쿠키로 페이지와 API를 쓴다', async () => {
+  const t = await boot();
+  const { res, cookie } = await login(t);
+  assert.equal(res.status, 303);
+  assert.equal(res.headers.get('location'), '/harness');
+  const setc = res.headers.get('set-cookie');
+  assert.match(setc, /HttpOnly/); assert.match(setc, /SameSite=Strict/); assert.match(setc, /Max-Age=43200/);
+  assert.ok(!setc.includes(DASH), '쿠키에 토큰 자체가 들어가면 안 된다');
+
+  const page = await t.call('GET', '/harness', { headers: { Cookie: cookie } });
+  const csp = page.headers.get('content-security-policy');
+  const nonce = /'nonce-([^']+)'/.exec(csp)[1];
+  const html = await page.text();
+  assert.ok(html.includes(`<script nonce="${nonce}">`) && !html.includes('__NONCE__'));
   assert.match(csp, /media-src 'self' https:\/\/proj\.supabase\.co/);
-  assert.equal(res.headers.get('referrer-policy'), 'no-referrer');
-  assert.equal((await t.call('GET', '/harness?token=' + AGENT)).status, 403);
+  assert.equal(page.headers.get('referrer-policy'), 'no-referrer');
+  assert.equal((await t.call('GET', '/api/harness', { headers: { Cookie: cookie } })).status, 200);
+  assert.equal((await t.call('GET', '/api/harness/motion/lumi/working', { headers: { Cookie: cookie } })).status, 302);
+  t.close();
+});
+
+test('로그인 실패: 403과 로그인 폼, 쿠키 없음. 에이전트 토큰으로는 로그인 못 한다', async () => {
+  const t = await boot();
+  for (const bad of ['nope', AGENT, '']) {
+    const { res } = await login(t, bad);
+    assert.equal(res.status, 403);
+    assert.equal(res.headers.get('set-cookie'), null);
+    assert.match(await res.text(), /토큰이 맞지 않아요/);
+  }
+  assert.equal((await t.call('POST', '/harness/login', { body: new URLSearchParams({ token: DASH }).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })).status, 403); // 같은 출처 표시가 없으면 거부
+  t.close();
+});
+
+test('쿠키 세션: 위조·만료·토큰 교체 후에는 무효, 쿠키로 쓰는 쓰기는 같은 출처만', async () => {
+  const t = await boot();
+  const { cookie } = await login(t);
+  const forged = cookie.replace(/.$/, (c) => (c === 'A' ? 'B' : 'A'));
+  assert.equal((await t.call('GET', '/api/harness', { headers: { Cookie: forged } })).status, 403);
+  assert.equal((await t.call('GET', '/api/harness', { headers: { Cookie: 'harness_session=1.abc' } })).status, 403);
+
+  const body = { agent: 'lumi', kind: 'info', message: 'x' };
+  assert.equal((await t.call('POST', '/api/harness/report', { body, headers: { Cookie: cookie } })).status, 403); // 출처 표시 없음
+  assert.equal((await t.call('POST', '/api/harness/report', { body, headers: { Cookie: cookie, 'Sec-Fetch-Site': 'cross-site' } })).status, 403);
+  assert.equal((await t.call('POST', '/api/harness/report', { body, headers: { Cookie: cookie, 'Sec-Fetch-Site': 'same-origin' } })).status, 200);
+  // Bearer 토큰(에이전트·스크립트)은 출처 표시가 필요 없다
+  assert.equal((await t.call('POST', '/api/harness/report', { token: AGENT, body })).status, 200);
+
+  // 같은 쿠키를 다른 DASHBOARD_TOKEN을 쓰는 서버에 내밀면 거부된다
+  const other = createHarnessApi({ store: t.store, dashboardToken: 'rotated', agentToken: AGENT, sprites: SPRITES, pageHtml: 'x', onError: () => {} });
+  const res = { writeHead(c) { this.c = c; return this; }, setHeader() {}, end() { return this; } };
+  await other.handle({ method: 'GET', headers: { cookie: cookie } }, res, new URL('http://x/api/harness'));
+  assert.equal(res.c, 403);
+  t.close();
+});
+
+test('로그아웃은 쿠키를 지운다', async () => {
+  const t = await boot();
+  const { cookie } = await login(t);
+  const out = await t.call('POST', '/harness/logout', { headers: { Cookie: cookie, 'Sec-Fetch-Site': 'same-origin' } });
+  assert.equal(out.status, 200);
+  assert.match(out.headers.get('set-cookie'), /Max-Age=0/);
   t.close();
 });
 
@@ -160,6 +225,6 @@ test('Supabase 설정이 없으면 인증 후 503 (페이지는 열린다)', asy
   const t = await boot({ withStore: false });
   assert.equal((await t.call('GET', '/api/harness')).status, 403);
   assert.equal((await t.call('GET', '/api/harness', { token: DASH })).status, 503);
-  assert.equal((await t.call('GET', '/harness?token=' + DASH)).status, 200);
+  assert.equal((await t.call('GET', '/harness')).status, 200); // 로그인 폼
   t.close();
 });

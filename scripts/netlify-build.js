@@ -19,7 +19,7 @@ writeFileSync(at('netlify/generated/repos.mjs'), `// scripts/netlify-build.js가
 
 mkdirSync(at('dist/assets'), { recursive: true });
 cpSync(at('src/assets/char'), at('dist/assets/char'), { recursive: true });
-writeFileSync(at('dist/index.html'), `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>하네스</title><p>하네스 대시보드는 <code>/harness?token=…</code> 주소로 들어갑니다.</p>\n`);
+writeFileSync(at('dist/index.html'), `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>하네스</title><p>하네스 대시보드는 <a href="/harness">/harness</a>에서 로그인합니다.</p>\n`);
 console.log(`netlify-build: 영상 ${repos.length}개, 스프라이트 ${sprites.length}개, 페이지 ${readFileSync(at('src/harness.html')).length}바이트`);
 
 // 미리보기·브랜치 배포가 운영 DB를 건드리지 않도록 운영 배포에서만 동기화한다.
