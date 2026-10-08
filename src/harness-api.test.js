@@ -228,3 +228,68 @@ test('Supabase 설정이 없으면 인증 후 503 (페이지는 열린다)', asy
   assert.equal((await t.call('GET', '/harness')).status, 200); // 로그인 폼
   t.close();
 });
+
+// ---- 작업 지시 요청함 ----
+const task = (t, token, body) => t.call('POST', '/api/harness/tasks', { token, body });
+
+test('작업 지시: 사람(대시보드)만 만들 수 있고, 내용·비밀값·없는 에이전트·대기 상한을 검사한다', async () => {
+  const t = await boot();
+  assert.equal((await task(t, DASH, { agent: 'lumi', body: '10월 지출 분석\n이상치 위주로' })).status, 201);
+  assert.equal(t.store._db.tasks[0].body, '10월 지출 분석\n이상치 위주로'); // 줄바꿈은 유지
+  assert.equal(t.store._db.tasks[0].status, 'queued');
+  assert.equal((await task(t, AGENT, { agent: 'lumi', body: 'x' })).status, 403); // 에이전트는 서로에게 일을 시키지 못한다
+  assert.equal((await task(t, DASH, { agent: 'lumi', body: '   ' })).status, 400);
+  assert.equal((await task(t, DASH, { agent: 'lumi', body: 'x'.repeat(2001) })).status, 400);
+  assert.equal((await task(t, DASH, { agent: 'lumi', body: 'a\u0000b' })).status, 400);
+  assert.equal((await task(t, DASH, { agent: 'lumi', body: 'key sk-abcdefghijklmnopqrstuv' })).status, 400);
+  assert.equal((await task(t, DASH, { agent: 'ghost', body: 'x' })).status, 404);
+  assert.equal((await task(t, DASH, { agent: 'Bad Id', body: 'x' })).status, 400);
+  for (let i = 0; i < 19; i++) await task(t, DASH, { agent: 'lumi', body: 'n' + i });
+  assert.equal((await task(t, DASH, { agent: 'lumi', body: '넘침' })).status, 409); // 20개 상한
+  t.close();
+});
+
+test('에이전트가 next로 가장 오래된 작업을 하나씩 가져가고, done 보고로 닫힌다', async () => {
+  const t = await boot();
+  await task(t, DASH, { agent: 'lumi', body: '첫째' }); await task(t, DASH, { agent: 'lumi', body: '둘째' });
+  const next = async () => (await (await t.call('POST', '/api/harness/tasks/next', { token: AGENT, body: { agent: 'lumi' } })).json()).task;
+  const a = await next();
+  assert.equal(a.body, '첫째');
+  assert.equal(t.store._db.tasks.find((x) => x.id === a.id).status, 'claimed');
+  assert.equal((await next()).body, '둘째');
+  assert.equal(await next(), null); // 비었으면 null
+
+  await t.call('POST', '/api/harness/report', { token: AGENT, body: { agent: 'lumi', kind: 'start', message: '일' } });
+  await t.call('POST', '/api/harness/report', { token: AGENT, body: { agent: 'lumi', kind: 'done', message: '끝' } });
+  assert.deepEqual(t.store._db.tasks.map((x) => x.status), ['done', 'done']);
+
+  await task(t, DASH, { agent: 'lumi', body: '셋째' });
+  await next();
+  await t.call('POST', '/api/harness/report', { token: AGENT, body: { agent: 'lumi', kind: 'fail', message: '실패' } });
+  assert.equal(t.store._db.tasks[2].status, 'failed');
+  t.close();
+});
+
+test('작업 상태 변경: 허용된 전이만, 취소는 사람도 가능', async () => {
+  const t = await boot();
+  const id = (await (await task(t, DASH, { agent: 'lumi', body: '일' })).json()).id;
+  const patch = (status, token = DASH) => t.call('PATCH', '/api/harness/tasks/' + id, { token, body: { status } });
+  assert.equal((await patch('done')).status, 409); // 대기 중에서 바로 완료는 안 됨
+  assert.equal((await patch('bogus')).status, 409);
+  assert.equal((await patch('cancelled')).status, 200);
+  assert.equal((await patch('claimed')).status, 409); // 취소된 작업은 되살릴 수 없음
+  assert.equal((await t.call('PATCH', '/api/harness/tasks/00000000-0000-4000-8000-000000000000', { token: DASH, body: { status: 'cancelled' } })).status, 404);
+  assert.equal((await t.call('PATCH', '/api/harness/tasks/' + id, { body: { status: 'cancelled' } })).status, 403);
+  t.close();
+});
+
+test('목록·스냅샷: 에이전트별 필터, 스냅샷에 작업이 들어간다', async () => {
+  const t = await boot();
+  await task(t, DASH, { agent: 'lumi', body: '일' });
+  const list = await (await t.call('GET', '/api/harness/tasks?agent=lumi&status=queued', { token: AGENT })).json();
+  assert.equal(list.tasks.length, 1);
+  assert.equal((await t.call('GET', '/api/harness/tasks?status=weird', { token: DASH })).status, 400);
+  const snap = await (await t.call('GET', '/api/harness', { token: DASH })).json();
+  assert.equal(snap.tasks[0].body, '일');
+  t.close();
+});

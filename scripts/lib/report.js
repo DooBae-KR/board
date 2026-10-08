@@ -61,6 +61,7 @@ export async function runReport(store, rawInput) {
     const rows = await store.updateAgent(c.id, patch, agent.updated_at);
     if (rows.length) {
       await store.addEvent(event);
+      if (c.kind === 'done' || c.kind === 'fail') await store.closeClaimed(c.id, c.kind === 'done' ? 'done' : 'failed'); // 지시받은 작업을 닫는다
       const next = rows[0];
       return { agent: c.id, kind: c.kind, status: next.status, progress: next.progress, section_id: next.section_id };
     }
