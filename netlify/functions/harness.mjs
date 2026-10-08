@@ -7,11 +7,11 @@ import { handleRequest } from '../../src/netlify-adapter.js';
 import { pageHtml, sprites } from '../generated/page.mjs';
 
 export default async (request) => {
-  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DASHBOARD_TOKEN, HARNESS_API_TOKEN } = process.env;
+  const { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, DASHBOARD_TOKEN, DASHBOARD_USER, DASHBOARD_PASSWORD, HARNESS_API_TOKEN } = process.env;
   // 호출마다 새로 만든다(서버리스는 연결을 재사용한다고 가정하지 않는다, CLAUDE.md 4-3)
   const api = createHarnessApi({
     store: SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY ? createStore(createClient()) : null,
-    dashboardToken: DASHBOARD_TOKEN, agentToken: HARNESS_API_TOKEN,
+    dashboardToken: DASHBOARD_TOKEN, dashboardUser: DASHBOARD_USER, dashboardPassword: DASHBOARD_PASSWORD, agentToken: HARNESS_API_TOKEN,
     sprites, pageHtml, supabaseUrl: SUPABASE_URL,
     onError: (e) => console.error('harness:', e.message),
   });

@@ -55,13 +55,13 @@ async function readForm(req) {
 }
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const loginPage = (nonce, error) => `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>하네스 로그인</title>
+const loginPage = (nonce, error, withUser = false) => `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>하네스 로그인</title>
 <style nonce="${nonce}">body{margin:0;min-height:100vh;display:grid;place-items:center;background:#F2F0FA;color:#2C2852;font:16px/1.5 system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
 form{background:#fff;border:1px solid #D9D3F1;border-radius:16px;padding:28px;width:min(360px,calc(100% - 32px));display:grid;gap:14px}
 h1{margin:0;font-size:22px}input{padding:10px 12px;border:1px solid #D9D3F1;border-radius:10px;font:inherit;width:100%;box-sizing:border-box}
 button{padding:10px;border:0;border-radius:10px;background:#6F62D2;color:#fff;font:inherit;cursor:pointer}.err{color:#D4506A;margin:0;font-size:14px}p{margin:0;color:#6E6896;font-size:14px}</style></head>
-<body><form method="post" action="/harness/login"><h1>하네스 대시보드</h1><p>대시보드 토큰을 입력하세요. 주소에는 남지 않아요.</p>
-<input type="password" name="token" autocomplete="current-password" aria-label="대시보드 토큰" required autofocus>${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}<button type="submit">들어가기</button></form></body></html>`;
+<body><form method="post" action="/harness/login"><h1>하네스 대시보드</h1><p>${withUser ? '아이디와 비밀번호를 입력하세요.' : '대시보드 토큰을 입력하세요. 주소에는 남지 않아요.'}</p>
+${withUser ? '<input type="text" name="username" autocomplete="username" aria-label="아이디" placeholder="아이디" required autofocus>\n<input type="password" name="password" autocomplete="current-password" aria-label="비밀번호" placeholder="비밀번호" required>' : '<input type="password" name="token" autocomplete="current-password" aria-label="대시보드 토큰" required autofocus>'}${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}<button type="submit">들어가기</button></form></body></html>`;
 
 /** 응답에 쓰는 동시에 열린 요청 본문은 버린다 */
 function send(res, code, body, headers = {}) {
@@ -138,6 +138,8 @@ function pageHeaders(nonce, mediaOrigin) {
  * @param {object} o
  * @param {object|null} o.store          createStore()/createMemoryStore() 결과. 없으면 503
  * @param {string} [o.dashboardToken]
+ * @param {string} [o.dashboardUser]      사람용 로그인 아이디(dashboardPassword와 함께 설정할 때만 아이디/비밀번호 로그인)
+ * @param {string} [o.dashboardPassword]
  * @param {string} [o.agentToken]
  * @param {string[]} o.sprites           허용하는 pose 이름 (src/assets/char/*.png)
  * @param {URL} [o.pageUrl]              harness.html 위치
@@ -145,7 +147,8 @@ function pageHeaders(nonce, mediaOrigin) {
  * @param {string} [o.supabaseUrl]       모션 클립 재생을 허용할 출처(CSP)
  * @param {(e: Error) => void} [o.onError]
  */
-export function createHarnessApi({ store, dashboardToken, agentToken, sprites, pageUrl, pageHtml, supabaseUrl, onError = console.error }) {
+export function createHarnessApi({ store, dashboardToken, dashboardUser, dashboardPassword, agentToken, sprites, pageUrl, pageHtml, supabaseUrl, onError = console.error }) {
+  const userLogin = !!(dashboardUser && dashboardPassword);
   const mediaOrigin = supabaseUrl ? new URL(supabaseUrl).origin : '';
 
   /** 인증 결과: 에이전트·스크립트는 Bearer 헤더, 사람은 로그인 쿠키. 주소의 ?token= 은 받지 않는다 */
@@ -262,11 +265,16 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
         if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' }, { Allow: 'POST' }), true;
         if (!sameOrigin(req)) return send(res, 403, { error: 'forbidden' }), true;
         const body = await readForm(req);
-        if (dashboardToken && typeof body.token === 'string' && sameToken(body.token, dashboardToken)) {
+        // 아이디/비밀번호를 설정했으면 그것으로, 아니면 토큰으로. 둘 다 항상 상수 시간 비교(아이디·비밀번호를 모두 비교한 뒤 판정)
+        const okUser = userLogin
+          ? [sameToken(body.username, dashboardUser), sameToken(body.password, dashboardPassword)].every(Boolean)
+          : false;
+        const okToken = !userLogin && typeof body.token === 'string' && sameToken(body.token, dashboardToken);
+        if (dashboardToken && (okUser || okToken)) {
           return res.writeHead(303, { Location: '/harness', 'Set-Cookie': setCookie(req, url, makeSession(dashboardToken), SESSION_MS / 1000), 'Cache-Control': 'no-store' }).end(), true;
         }
         await new Promise((r) => setTimeout(r, 400)); // 무차별 대입을 조금 늦춘다
-        return page(403, (nonce) => loginPage(nonce, '토큰이 맞지 않아요.')), true;
+        return page(403, (nonce) => loginPage(nonce, userLogin ? '아이디 또는 비밀번호가 맞지 않아요.' : '토큰이 맞지 않아요.', userLogin)), true;
       }
       if (path === '/harness/logout') {
         if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' }, { Allow: 'POST' }), true;
@@ -277,7 +285,7 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
       // 대시보드 페이지: 로그인 전에는 로그인 폼
       if (isPage) {
         if (req.method !== 'GET') return send(res, 405, { error: 'method not allowed' }, { Allow: 'GET' }), true;
-        if (who !== 'dashboard') return page(200, (nonce) => loginPage(nonce)), true;
+        if (who !== 'dashboard') return page(200, (nonce) => loginPage(nonce, undefined, userLogin)), true;
         const html = pageHtml ?? await readFile(pageUrl, 'utf8');
         return page(200, (nonce) => html.replaceAll('__NONCE__', nonce)), true;
       }

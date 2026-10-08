@@ -82,7 +82,7 @@ node scripts/harness-report.js <id> next            # 대시보드 '작업 지�
 | 경로 | 토큰 | 용도 |
 |---|---|---|
 | `GET /harness` | 로그인 쿠키 | 대시보드 페이지. 로그인 전에는 로그인 폼 |
-| `POST /harness/login` · `/harness/logout` | `DASHBOARD_TOKEN`(본문) | 토큰을 POST 본문으로 받아 HttpOnly 세션 쿠키(12시간, 토큰으로 서명)를 심고/지운다 |
+| `POST /harness/login` · `/harness/logout` | `DASHBOARD_USER`+`DASHBOARD_PASSWORD`(둘 다 설정했을 때) 또는 `DASHBOARD_TOKEN`(본문) | 토큰을 POST 본문으로 받아 HttpOnly 세션 쿠키(12시간, 토큰으로 서명)를 심고/지운다 |
 | `GET /api/harness` | 로그인 쿠키 또는 `DASHBOARD_TOKEN` Bearer | 전체 상태 (ETag) |
 | `POST /api/harness/report` | 대시보드(쿠키·Bearer) 또는 `HARNESS_API_TOKEN` Bearer | 진행 보고 (6장 종류와 같음) |
 | `POST /api/harness/tasks` | 대시보드(쿠키·Bearer)만 | 대화창의 작업 지시를 에이전트 요청함에 넣는다 (2000자, 에이전트당 대기 20개, 비밀값 거부) |
@@ -96,7 +96,7 @@ node scripts/harness-report.js <id> next            # 대시보드 '작업 지�
 
 토큰은 주소(URL)에 싣지 않는다(기록·히스토리·Referer에 남기 때문). 쿠키로 인증한 쓰기 요청은 같은 출처(`Sec-Fetch-Site`/`Origin`)만 받는다. `DASHBOARD_TOKEN`을 바꾸면 기존 세션이 모두 무효가 된다.
 
-환경변수: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DASHBOARD_TOKEN`, `HARNESS_API_TOKEN`. 에이전트 쪽은 `HARNESS_API_URL` + `HARNESS_API_TOKEN`을 두면 `harness-report.js`가 서버로 보낸다.
+환경변수: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DASHBOARD_TOKEN`(세션 서명·스크립트 Bearer용으로 항상 필요), `HARNESS_API_TOKEN`, 선택 `DASHBOARD_USER`/`DASHBOARD_PASSWORD`(사람용 로그인. 값은 환경변수에만 두고 저장소에는 기본값을 넣지 않는다). 에이전트 쪽은 `HARNESS_API_URL` + `HARNESS_API_TOKEN`을 두면 `harness-report.js`가 서버로 보낸다.
 
 ### Netlify 배포 (samgukji.netlify.app)
 

@@ -13,7 +13,7 @@ import { syncAgents } from '../scripts/lib/agents-sync.js';
 import { createHarnessApi } from './harness-api.js';
 
 const {
-  PORT = 3000, VERIFY_TOKEN, DASHBOARD_TOKEN, TOKENS_FILE = 'data/tokens.json',
+  PORT = 3000, VERIFY_TOKEN, DASHBOARD_TOKEN, DASHBOARD_USER, DASHBOARD_PASSWORD, TOKENS_FILE = 'data/tokens.json',
   REPOS_SYNC_REPO, REPOS_SYNC_BRANCH = 'main', REPOS_SYNC_PATH = 'data/repos.json',
   REPOS_SYNC_INTERVAL_MIN = '5', GITHUB_TOKEN,
   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, HARNESS_API_TOKEN, HARNESS_SYNC = '1',
@@ -64,6 +64,8 @@ const harnessDb = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY ? createClient() : n
 const harnessApi = createHarnessApi({
   store: harnessDb ? createStore(harnessDb) : null,
   dashboardToken: DASHBOARD_TOKEN,
+  dashboardUser: DASHBOARD_USER,
+  dashboardPassword: DASHBOARD_PASSWORD,
   agentToken: HARNESS_API_TOKEN,
   sprites: readdirSync(new URL('./assets/char/', import.meta.url)).filter((f) => f.endsWith('.png')).map((f) => f.slice(0, -4)),
   pageUrl: new URL('./harness.html', import.meta.url),
