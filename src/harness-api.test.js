@@ -8,14 +8,14 @@ import { runReport } from '../scripts/lib/report.js';
 const DASH = 'dash-token', AGENT = 'agent-token';
 const SPRITES = ['idle', 'happy', 'sleep'];
 
-async function boot({ withStore = true } = {}) {
+async function boot({ withStore = true, creds = {} } = {}) {
   const store = createMemoryStore({
     sections: [{ name: '인사팀' }],
     agents: [{ id: 'lumi', name: '루미', role: '분석', pose: 'idle', color: '#7A5BC9', example: false, md_sha256: 'secret-hash' }],
     motions: [{ agent_id: 'lumi', state: 'working', storage_path: 'agent-motions/lumi/working.mp4' }],
   });
   const api = createHarnessApi({
-    store: withStore ? store : null, dashboardToken: DASH, agentToken: AGENT, sprites: SPRITES,
+    store: withStore ? store : null, dashboardToken: DASH, ...creds, agentToken: AGENT, sprites: SPRITES,
     pageUrl: new URL('./harness.html', import.meta.url), supabaseUrl: 'https://proj.supabase.co', onError: () => {},
   });
   const server = createServer(async (req, res) => { if (!(await api.handle(req, res, new URL(req.url, 'http://x')))) res.writeHead(404).end(); });
@@ -291,5 +291,32 @@ test('목록·스냅샷: 에이전트별 필터, 스냅샷에 작업이 들어�
   assert.equal((await t.call('GET', '/api/harness/tasks?status=weird', { token: DASH })).status, 400);
   const snap = await (await t.call('GET', '/api/harness', { token: DASH })).json();
   assert.equal(snap.tasks[0].body, '일');
+  t.close();
+});
+
+test('아이디/비밀번호 로그인: 설정하면 폼이 바뀌고, 둘 다 맞아야 하며 토큰으로는 폼 로그인이 안 된다', async () => {
+  const t = await boot({ creds: { dashboardUser: 'tester', dashboardPassword: 'pw-for-test' } });
+  const form = (o) => t.call('POST', '/harness/login', { body: new URLSearchParams(o).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Sec-Fetch-Site': 'same-origin' } });
+  const html = await (await t.call('GET', '/harness')).text();
+  assert.match(html, /name="username"/); assert.match(html, /name="password"/); assert.ok(!html.includes('name="token"'));
+
+  const ok = await form({ username: 'tester', password: 'pw-for-test' });
+  assert.equal(ok.status, 303);
+  const cookie = ok.headers.get('set-cookie').split(';')[0];
+  assert.equal((await t.call('GET', '/api/harness', { headers: { Cookie: cookie } })).status, 200);
+
+  for (const bad of [{ username: 'tester', password: 'x' }, { username: 'x', password: 'pw-for-test' }, { token: DASH }, { username: '', password: '' }]) {
+    const r = await form(bad);
+    assert.equal(r.status, 403); assert.equal(r.headers.get('set-cookie'), null);
+    assert.match(await r.text(), /아이디 또는 비밀번호/);
+  }
+  assert.equal((await t.call('GET', '/api/harness', { token: DASH })).status, 200); // 스크립트용 Bearer는 그대로
+  t.close();
+});
+
+test('아이디만 있고 비밀번호가 없으면 아이디 로그인은 꺼진 채 토큰 로그인', async () => {
+  const t = await boot({ creds: { dashboardUser: 'tester' } });
+  assert.match(await (await t.call('GET', '/harness')).text(), /name="token"/);
+  assert.equal((await login(t)).res.status, 303);
   t.close();
 });
