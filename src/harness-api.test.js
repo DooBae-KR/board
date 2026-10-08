@@ -338,3 +338,18 @@ test('아이디/비밀번호 로그인 세션은 비밀번호가 바뀌면 무�
   assert.notEqual((await run(a, 'GET', '/api/harness', { cookie })).status, 403);
   assert.equal((await run(mk('pw-two'), 'GET', '/api/harness', { cookie })).status, 403);
 });
+
+test('세션 쿠키는 암호화되어 있어 토큰·아이디·만료 시각이 평문으로 보이지 않고, 변조하면 무효', async () => {
+  const t = await boot({ creds: { dashboardUser: 'tester', dashboardPassword: 'pw-for-test' } });
+  const r = await t.call('POST', '/harness/login', { body: new URLSearchParams({ username: 'tester', password: 'pw-for-test' }).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Sec-Fetch-Site': 'same-origin' } });
+  const cookie = r.headers.get('set-cookie').split(';')[0];
+  const value = cookie.split('=')[1];
+  assert.match(value, /^[0-9a-f]{24}\.[0-9a-f]+\.[0-9a-f]{32}$/);
+  const raw = Buffer.from(value.split('.')[1], 'hex').toString('latin1');
+  assert.ok(!raw.includes('tester') && !raw.includes('exp') && !value.includes(DASH));
+  assert.equal((await t.call('GET', '/api/harness', { headers: { Cookie: cookie } })).status, 200);
+  const [iv, ct, tag] = value.split('.');
+  const flipped = `${iv}.${(ct[0] === '0' ? '1' : '0') + ct.slice(1)}.${tag}`;
+  assert.equal((await t.call('GET', '/api/harness', { headers: { Cookie: 'harness_session=' + flipped } })).status, 403);
+  t.close();
+});

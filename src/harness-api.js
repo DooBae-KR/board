@@ -3,9 +3,9 @@
 // 토큰은 주소(URL)에 싣지 않는다. 기록·히스토리·Referer에 남기 때문이다.
 //   DASHBOARD_TOKEN    사람(대시보드): /harness 로그인 폼에 입력(POST) → HttpOnly 세션 쿠키. 읽기, 보고, 섹션 추가·삭제, 위젯 갱신
 //   HARNESS_API_TOKEN  에이전트(Agent Substrate Actor): Authorization: Bearer 헤더. 보고, 섹션 추가, 위젯 갱신
-// 쿠키 세션은 DASHBOARD_TOKEN으로 서명한 값이라 서버에 저장하지 않고, 토큰을 바꾸면 모든 세션이 무효가 된다.
+// 쿠키 세션은 서버 비밀값(DASHBOARD_TOKEN 등)에서 만든 키로 암호화한 값이라 서버에 저장하지 않고, 비밀값을 바꾸면 모든 세션이 무효가 된다.
 // 쓰기는 모두 서버가 service_role로 한다. 브라우저는 Supabase에 직접 닿지 않는다 (CLAUDE.md 2-3).
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { HarnessError, MOTION_STATES, ID_RE, looksSecret } from '../scripts/lib/harness.js';
 import { runReport } from '../scripts/lib/report.js';
@@ -26,13 +26,27 @@ const CONTROL = /[\u0000-\u001f\u007f]/;
 
 const COOKIE = 'harness_session';
 const SESSION_MS = 12 * 60 * 60 * 1000;
-const sign = (key, exp) => createHmac('sha256', key).update(`harness-session:v1:${exp}`).digest('base64url');
-const makeSession = (key, now = Date.now()) => { const exp = now + SESSION_MS; return `${exp}.${sign(key, exp)}`; };
+// 세션 쿠키 = AES-256-GCM으로 암호화한 {만료, 사용자}. 암호화 키는 서버의 비밀값(토큰·아이디·비밀번호)에서 HKDF로 만든다.
+// 쿠키에는 토큰이 없고, 내용을 읽을 수도 위조할 수도 없다(GCM 인증 태그). 형식: iv.암호문.태그 (모두 hex)
+const aesKey = (key) => Buffer.from(hkdfSync('sha256', String(key), 'harness-session', 'aes-256-gcm:v2', 32));
+function makeSession(key, user = 'dashboard', now = Date.now()) {
+  const iv = randomBytes(12);
+  const c = createCipheriv('aes-256-gcm', aesKey(key), iv);
+  const ct = Buffer.concat([c.update(JSON.stringify({ exp: now + SESSION_MS, u: user }), 'utf8'), c.final()]);
+  return [iv, ct, c.getAuthTag()].map((b) => b.toString('hex')).join('.');
+}
 function validSession(key, value, now = Date.now()) {
   if (!key || !value) return false;
-  const [exp, sig] = String(value).split('.');
-  if (!/^\d{10,15}$/.test(exp || '') || !sig || Number(exp) < now) return false;
-  return sameToken(sig, sign(key, exp));
+  const parts = String(value).split('.');
+  if (parts.length !== 3 || !parts.every((p) => /^[0-9a-f]+$/.test(p))) return false;
+  const [iv, ct, tag] = parts.map((p) => Buffer.from(p, 'hex'));
+  if (iv.length !== 12 || tag.length !== 16 || ct.length > 256) return false;
+  try {
+    const d = createDecipheriv('aes-256-gcm', aesKey(key), iv);
+    d.setAuthTag(tag);
+    const { exp } = JSON.parse(Buffer.concat([d.update(ct), d.final()]).toString('utf8'));
+    return Number.isFinite(exp) && exp >= now;
+  } catch { return false; }
 }
 const cookieOf = (req, name) => (req.headers.cookie ?? '').split(';').map((c) => c.trim().split(/=(.*)/s)).find(([k]) => k === name)?.[1];
 /** 쿠키로 인증된 쓰기 요청은 같은 출처에서 온 것만 받는다(CSRF 방어. SameSite=Strict와 함께 이중으로) */
@@ -273,7 +287,7 @@ export function createHarnessApi({ store, dashboardToken, dashboardUser, dashboa
           : false;
         const okToken = !userLogin && typeof body.token === 'string' && sameToken(body.token, dashboardToken);
         if (dashboardToken && (okUser || okToken)) {
-          return res.writeHead(303, { Location: '/harness', 'Set-Cookie': setCookie(req, url, makeSession(sessionKey), SESSION_MS / 1000), 'Cache-Control': 'no-store' }).end(), true;
+          return res.writeHead(303, { Location: '/harness', 'Set-Cookie': setCookie(req, url, makeSession(sessionKey, okUser ? dashboardUser : 'token'), SESSION_MS / 1000), 'Cache-Control': 'no-store' }).end(), true;
         }
         await new Promise((r) => setTimeout(r, 400)); // 무차별 대입을 조금 늦춘다
         return page(403, (nonce) => loginPage(nonce, userLogin ? '아이디 또는 비밀번호가 맞지 않아요.' : '토큰이 맞지 않아요.', userLogin)), true;

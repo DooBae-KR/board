@@ -82,7 +82,7 @@ node scripts/harness-report.js <id> next            # 대시보드 '작업 지�
 | 경로 | 토큰 | 용도 |
 |---|---|---|
 | `GET /harness` | 로그인 쿠키 | 대시보드 페이지. 로그인 전에는 로그인 폼 |
-| `POST /harness/login` · `/harness/logout` | `DASHBOARD_USER`+`DASHBOARD_PASSWORD`(둘 다 설정했을 때) 또는 `DASHBOARD_TOKEN`(본문) | 토큰을 POST 본문으로 받아 HttpOnly 세션 쿠키(12시간, 토큰으로 서명)를 심고/지운다 |
+| `POST /harness/login` · `/harness/logout` | `DASHBOARD_USER`+`DASHBOARD_PASSWORD`(둘 다 설정했을 때) 또는 `DASHBOARD_TOKEN`(본문) | 토큰을 POST 본문으로 받아 HttpOnly 세션 쿠키(12시간, AES-256-GCM으로 암호화)를 심고/지운다 |
 | `GET /api/harness` | 로그인 쿠키 또는 `DASHBOARD_TOKEN` Bearer | 전체 상태 (ETag) |
 | `POST /api/harness/report` | 대시보드(쿠키·Bearer) 또는 `HARNESS_API_TOKEN` Bearer | 진행 보고 (6장 종류와 같음) |
 | `POST /api/harness/tasks` | 대시보드(쿠키·Bearer)만 | 대화창의 작업 지시를 에이전트 요청함에 넣는다 (2000자, 에이전트당 대기 20개, 비밀값 거부) |
