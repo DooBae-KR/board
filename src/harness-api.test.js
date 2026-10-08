@@ -1,3 +1,4 @@
+import { hashPassword } from '../scripts/lib/password.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -8,14 +9,15 @@ import { runReport } from '../scripts/lib/report.js';
 const DASH = 'dash-token', AGENT = 'agent-token';
 const SPRITES = ['idle', 'happy', 'sleep'];
 
-async function boot({ withStore = true, creds = {} } = {}) {
+async function boot({ withStore = true, admins = [] } = {}) {
   const store = createMemoryStore({
     sections: [{ name: '인사팀' }],
     agents: [{ id: 'lumi', name: '루미', role: '분석', pose: 'idle', color: '#7A5BC9', example: false, md_sha256: 'secret-hash' }],
     motions: [{ agent_id: 'lumi', state: 'working', storage_path: 'agent-motions/lumi/working.mp4' }],
+    admins,
   });
   const api = createHarnessApi({
-    store: withStore ? store : null, dashboardToken: DASH, ...creds, agentToken: AGENT, sprites: SPRITES,
+    store: withStore ? store : null, dashboardToken: DASH, agentToken: AGENT, sprites: SPRITES,
     pageUrl: new URL('./harness.html', import.meta.url), supabaseUrl: 'https://proj.supabase.co', onError: () => {},
   });
   const server = createServer(async (req, res) => { if (!(await api.handle(req, res, new URL(req.url, 'http://x')))) res.writeHead(404).end(); });
@@ -294,19 +296,22 @@ test('목록·스냅샷: 에이전트별 필터, 스냅샷에 작업이 들어�
   t.close();
 });
 
-test('아이디/비밀번호 로그인: 설정하면 폼이 바뀌고, 둘 다 맞아야 하며 토큰으로는 폼 로그인이 안 된다', async () => {
-  const t = await boot({ creds: { dashboardUser: 'tester', dashboardPassword: 'pw-for-test' } });
-  const form = (o) => t.call('POST', '/harness/login', { body: new URLSearchParams(o).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Sec-Fetch-Site': 'same-origin' } });
+const PW = 'pw-for-test-1234';
+const adminRow = async (username = 'tester', pw = PW) => ({ username, password_hash: await hashPassword(pw) });
+const formLogin = (t, o) => t.call('POST', '/harness/login', { body: new URLSearchParams(o).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Sec-Fetch-Site': 'same-origin' } });
+
+test('계정이 테이블에 있으면 아이디/비밀번호 폼, 둘 다 맞아야 하고 토큰으로는 폼 로그인이 안 된다', async () => {
+  const t = await boot({ admins: [await adminRow()] });
   const html = await (await t.call('GET', '/harness')).text();
   assert.match(html, /name="username"/); assert.match(html, /name="password"/); assert.ok(!html.includes('name="token"'));
 
-  const ok = await form({ username: 'tester', password: 'pw-for-test' });
+  const ok = await formLogin(t, { username: 'Tester', password: PW }); // 아이디는 대소문자 무시
   assert.equal(ok.status, 303);
   const cookie = ok.headers.get('set-cookie').split(';')[0];
   assert.equal((await t.call('GET', '/api/harness', { headers: { Cookie: cookie } })).status, 200);
 
-  for (const bad of [{ username: 'tester', password: 'x' }, { username: 'x', password: 'pw-for-test' }, { token: DASH }, { username: '', password: '' }]) {
-    const r = await form(bad);
+  for (const bad of [{ username: 'tester', password: 'x' }, { username: 'nobody', password: PW }, { token: DASH }, { username: '', password: '' }]) {
+    const r = await formLogin(t, bad);
     assert.equal(r.status, 403); assert.equal(r.headers.get('set-cookie'), null);
     assert.match(await r.text(), /아이디 또는 비밀번호/);
   }
@@ -314,40 +319,32 @@ test('아이디/비밀번호 로그인: 설정하면 폼이 바뀌고, 둘 다 �
   t.close();
 });
 
-test('아이디만 있고 비밀번호가 없으면 아이디 로그인은 꺼진 채 토큰 로그인', async () => {
-  const t = await boot({ creds: { dashboardUser: 'tester' } });
+test('계정이 하나도 없으면 최초 설정용 토큰 로그인', async () => {
+  const t = await boot();
   assert.match(await (await t.call('GET', '/harness')).text(), /name="token"/);
   assert.equal((await login(t)).res.status, 303);
   t.close();
 });
 
-test('아이디/비밀번호 로그인 세션은 비밀번호가 바뀌면 무효가 된다', async () => {
-  const mk = (pw) => createHarnessApi({ store: null, dashboardToken: DASH, dashboardUser: 'tester', dashboardPassword: pw, agentToken: AGENT, sprites: SPRITES, pageUrl: new URL('./harness.html', import.meta.url), onError: () => {} });
-  const run = async (api, method, path, headers = {}, body) => {
-    const chunks = body ? [Buffer.from(body)] : [];
-    const req = Object.assign(chunks.length ? (async function* () { yield* chunks; })() : (async function* () {})(), { method, headers, url: path });
-    let out = { status: 0, headers: {} };
-    const res = { writeHead(c, h = {}) { out.status = c; out.headers = h; return this; }, end() { return this; } };
-    await api.handle(req, res, new URL(path, 'http://x'));
-    return out;
-  };
-  const a = mk('pw-one');
-  const r = await run(a, 'POST', '/harness/login', { 'content-type': 'application/x-www-form-urlencoded', 'sec-fetch-site': 'same-origin' }, 'username=tester&password=pw-one');
-  assert.equal(r.status, 303);
-  const cookie = r.headers['Set-Cookie'].split(';')[0];
-  assert.notEqual((await run(a, 'GET', '/api/harness', { cookie })).status, 403);
-  assert.equal((await run(mk('pw-two'), 'GET', '/api/harness', { cookie })).status, 403);
+test('비밀번호를 바꾸거나 계정을 지우면 기존 세션이 무효가 된다', async () => {
+  const t = await boot({ admins: [await adminRow()] });
+  const cookie = (await formLogin(t, { username: 'tester', password: PW })).headers.get('set-cookie').split(';')[0];
+  const get = () => t.call('GET', '/api/harness', { headers: { Cookie: cookie } });
+  assert.equal((await get()).status, 200);
+  t.store._db.admins[0].password_hash = (await adminRow('tester', 'another-pw-5678')).password_hash;
+  assert.equal((await get()).status, 403);
+  t.store._db.admins.length = 0;
+  assert.equal((await get()).status, 403);
+  t.close();
 });
 
 test('세션 쿠키는 암호화되어 있어 토큰·아이디·만료 시각이 평문으로 보이지 않고, 변조하면 무효', async () => {
-  const t = await boot({ creds: { dashboardUser: 'tester', dashboardPassword: 'pw-for-test' } });
-  const r = await t.call('POST', '/harness/login', { body: new URLSearchParams({ username: 'tester', password: 'pw-for-test' }).toString(), headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Sec-Fetch-Site': 'same-origin' } });
-  const cookie = r.headers.get('set-cookie').split(';')[0];
-  const value = cookie.split('=')[1];
+  const t = await boot({ admins: [await adminRow()] });
+  const r = await formLogin(t, { username: 'tester', password: PW });
+  const value = r.headers.get('set-cookie').split(';')[0].split('=')[1];
   assert.match(value, /^[0-9a-f]{24}\.[0-9a-f]+\.[0-9a-f]{32}$/);
   const raw = Buffer.from(value.split('.')[1], 'hex').toString('latin1');
   assert.ok(!raw.includes('tester') && !raw.includes('exp') && !value.includes(DASH));
-  assert.equal((await t.call('GET', '/api/harness', { headers: { Cookie: cookie } })).status, 200);
   const [iv, ct, tag] = value.split('.');
   const flipped = `${iv}.${(ct[0] === '0' ? '1' : '0') + ct.slice(1)}.${tag}`;
   assert.equal((await t.call('GET', '/api/harness', { headers: { Cookie: 'harness_session=' + flipped } })).status, 403);

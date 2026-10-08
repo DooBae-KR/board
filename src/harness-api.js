@@ -9,6 +9,7 @@ import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes, ti
 import { readFile } from 'node:fs/promises';
 import { HarnessError, MOTION_STATES, ID_RE, looksSecret } from '../scripts/lib/harness.js';
 import { runReport } from '../scripts/lib/report.js';
+import { verifyPassword, USERNAME_RE } from '../scripts/lib/password.js';
 
 const COLORS = ['lavender', 'pink', 'mint', 'peach', 'sky'];
 const WIDGET_TYPES = ['kpi', 'donut', 'bars', 'line', 'list', 'feed'];
@@ -25,28 +26,31 @@ const sameToken = (a, b) => !!a && !!b && timingSafeEqual(digest(a), digest(b));
 const CONTROL = /[\u0000-\u001f\u007f]/;
 
 const COOKIE = 'harness_session';
+const TOKEN_USER = '\u0000token';
 const SESSION_MS = 12 * 60 * 60 * 1000;
-// 세션 쿠키 = AES-256-GCM으로 암호화한 {만료, 사용자}. 암호화 키는 서버의 비밀값(토큰·아이디·비밀번호)에서 HKDF로 만든다.
+// 세션 쿠키 = AES-256-GCM으로 암호화한 {만료, 사용자, 비밀번호 지문}. 암호화 키는 서버 비밀값(DASHBOARD_TOKEN)에서 HKDF로 만든다.
 // 쿠키에는 토큰이 없고, 내용을 읽을 수도 위조할 수도 없다(GCM 인증 태그). 형식: iv.암호문.태그 (모두 hex)
 const aesKey = (key) => Buffer.from(hkdfSync('sha256', String(key), 'harness-session', 'aes-256-gcm:v2', 32));
-function makeSession(key, user = 'dashboard', now = Date.now()) {
+const fingerprint = (hash) => createHash('sha256').update(String(hash)).digest('hex').slice(0, 16);
+function makeSession(key, user, fp = '', now = Date.now()) {
   const iv = randomBytes(12);
   const c = createCipheriv('aes-256-gcm', aesKey(key), iv);
-  const ct = Buffer.concat([c.update(JSON.stringify({ exp: now + SESSION_MS, u: user }), 'utf8'), c.final()]);
+  const ct = Buffer.concat([c.update(JSON.stringify({ exp: now + SESSION_MS, u: user, f: fp }), 'utf8'), c.final()]);
   return [iv, ct, c.getAuthTag()].map((b) => b.toString('hex')).join('.');
 }
-function validSession(key, value, now = Date.now()) {
-  if (!key || !value) return false;
+/** 복호화에 성공하고 만료 전이면 {u, f}, 아니면 null (계정 확인은 호출한 쪽이 한다) */
+function openSession(key, value, now = Date.now()) {
+  if (!key || !value) return null;
   const parts = String(value).split('.');
-  if (parts.length !== 3 || !parts.every((p) => /^[0-9a-f]+$/.test(p))) return false;
+  if (parts.length !== 3 || !parts.every((p) => /^[0-9a-f]+$/.test(p))) return null;
   const [iv, ct, tag] = parts.map((p) => Buffer.from(p, 'hex'));
-  if (iv.length !== 12 || tag.length !== 16 || ct.length > 256) return false;
+  if (iv.length !== 12 || tag.length !== 16 || ct.length > 256) return null;
   try {
     const d = createDecipheriv('aes-256-gcm', aesKey(key), iv);
     d.setAuthTag(tag);
-    const { exp } = JSON.parse(Buffer.concat([d.update(ct), d.final()]).toString('utf8'));
-    return Number.isFinite(exp) && exp >= now;
-  } catch { return false; }
+    const { exp, u, f } = JSON.parse(Buffer.concat([d.update(ct), d.final()]).toString('utf8'));
+    return Number.isFinite(exp) && exp >= now && typeof u === 'string' ? { u, f: String(f ?? '') } : null;
+  } catch { return null; }
 }
 const cookieOf = (req, name) => (req.headers.cookie ?? '').split(';').map((c) => c.trim().split(/=(.*)/s)).find(([k]) => k === name)?.[1];
 /** 쿠키로 인증된 쓰기 요청은 같은 출처에서 온 것만 받는다(CSRF 방어. SameSite=Strict와 함께 이중으로) */
@@ -152,8 +156,6 @@ function pageHeaders(nonce, mediaOrigin) {
  * @param {object} o
  * @param {object|null} o.store          createStore()/createMemoryStore() 결과. 없으면 503
  * @param {string} [o.dashboardToken]
- * @param {string} [o.dashboardUser]      사람용 로그인 아이디(dashboardPassword와 함께 설정할 때만 아이디/비밀번호 로그인)
- * @param {string} [o.dashboardPassword]
  * @param {string} [o.agentToken]
  * @param {string[]} o.sprites           허용하는 pose 이름 (src/assets/char/*.png)
  * @param {URL} [o.pageUrl]              harness.html 위치
@@ -161,21 +163,26 @@ function pageHeaders(nonce, mediaOrigin) {
  * @param {string} [o.supabaseUrl]       모션 클립 재생을 허용할 출처(CSP)
  * @param {(e: Error) => void} [o.onError]
  */
-export function createHarnessApi({ store, dashboardToken, dashboardUser, dashboardPassword, agentToken, sprites, pageUrl, pageHtml, supabaseUrl, onError = console.error }) {
-  const userLogin = !!(dashboardUser && dashboardPassword);
-  // 세션 서명 키: 토큰(서버 환경변수)에 아이디·비밀번호를 묶는다. 셋 중 하나라도 바뀌면 기존 세션이 모두 무효가 된다. 키 자체는 브라우저로 나가지 않는다
-  const sessionKey = dashboardToken ? (userLogin ? `${dashboardToken}\0${dashboardUser}\0${dashboardPassword}` : dashboardToken) : undefined;
+export function createHarnessApi({ store, dashboardToken, agentToken, sprites, pageUrl, pageHtml, supabaseUrl, onError = console.error }) {
+  /** 로그인 계정이 하나라도 있으면 아이디/비밀번호 로그인. 테이블이 없거나 조회가 실패하면 없는 것으로 본다(최초 설정용 토큰 로그인) */
+  const hasAdmins = async () => !!(await store?.countAdmins().catch(() => 0));
   const mediaOrigin = supabaseUrl ? new URL(supabaseUrl).origin : '';
 
   /** 인증 결과: 에이전트·스크립트는 Bearer 헤더, 사람은 로그인 쿠키. 주소의 ?token= 은 받지 않는다 */
-  const auth = (req) => {
+  const auth = async (req) => {
     const bearer = /^Bearer\s+(.+)$/i.exec(req.headers.authorization ?? '')?.[1]?.trim();
     if (bearer) {
       if (sameToken(bearer, dashboardToken)) return { who: 'dashboard' };
       if (sameToken(bearer, agentToken)) return { who: 'agent' };
       return { who: null };
     }
-    if (validSession(sessionKey, cookieOf(req, COOKIE))) return { who: 'dashboard', viaCookie: true };
+    const sess = openSession(dashboardToken, cookieOf(req, COOKIE));
+    if (sess) {
+      if (sess.u === TOKEN_USER) return { who: 'dashboard', viaCookie: true }; // 토큰으로 로그인한 세션(계정이 하나도 없을 때만 가능)
+      // 계정이 지워졌거나 비밀번호가 바뀌었으면 그 세션은 무효
+      const admin = await store?.getAdmin(sess.u).catch(() => null);
+      if (admin && sameToken(fingerprint(admin.password_hash), sess.f)) return { who: 'dashboard', viaCookie: true };
+    }
     return { who: null };
   };
 
@@ -273,7 +280,7 @@ export function createHarnessApi({ store, dashboardToken, dashboardUser, dashboa
     if (!isPage && !isAuthPath && path !== '/api/harness' && !path.startsWith('/api/harness/')) return false;
 
     try {
-      const { who, viaCookie } = auth(req);
+      const { who, viaCookie } = await auth(req);
       const page = (code, html, extra = {}) => { const nonce = randomBytes(16).toString('base64'); return res.writeHead(code, { ...pageHeaders(nonce, mediaOrigin), ...extra }).end(typeof html === 'function' ? html(nonce) : html); };
 
       // 로그인: 토큰을 POST 본문으로 받아 세션 쿠키를 심는다
@@ -281,16 +288,21 @@ export function createHarnessApi({ store, dashboardToken, dashboardUser, dashboa
         if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' }, { Allow: 'POST' }), true;
         if (!sameOrigin(req)) return send(res, 403, { error: 'forbidden' }), true;
         const body = await readForm(req);
-        // 아이디/비밀번호를 설정했으면 그것으로, 아니면 토큰으로. 둘 다 항상 상수 시간 비교(아이디·비밀번호를 모두 비교한 뒤 판정)
-        const okUser = userLogin
-          ? [sameToken(body.username, dashboardUser), sameToken(body.password, dashboardPassword)].every(Boolean)
-          : false;
-        const okToken = !userLogin && typeof body.token === 'string' && sameToken(body.token, dashboardToken);
-        if (dashboardToken && (okUser || okToken)) {
-          return res.writeHead(303, { Location: '/harness', 'Set-Cookie': setCookie(req, url, makeSession(sessionKey, okUser ? dashboardUser : 'token'), SESSION_MS / 1000), 'Cache-Control': 'no-store' }).end(), true;
+        const userMode = await hasAdmins();
+        let sessionValue = null;
+        if (dashboardToken && userMode) {
+          // 계정은 harness_admins 테이블. 없는 아이디도 같은 시간이 걸리도록 항상 해시를 비교한다
+          const name = typeof body.username === 'string' ? body.username.trim().toLowerCase() : '';
+          const admin = USERNAME_RE.test(name) ? await store.getAdmin(name).catch(() => null) : null;
+          if (await verifyPassword(body.password, admin?.password_hash) && admin) sessionValue = makeSession(dashboardToken, admin.username, fingerprint(admin.password_hash));
+        } else if (dashboardToken && !userMode && typeof body.token === 'string' && sameToken(body.token, dashboardToken)) {
+          sessionValue = makeSession(dashboardToken, TOKEN_USER); // 계정을 만들기 전의 최초 설정용
+        }
+        if (sessionValue) {
+          return res.writeHead(303, { Location: '/harness', 'Set-Cookie': setCookie(req, url, sessionValue, SESSION_MS / 1000), 'Cache-Control': 'no-store' }).end(), true;
         }
         await new Promise((r) => setTimeout(r, 400)); // 무차별 대입을 조금 늦춘다
-        return page(403, (nonce) => loginPage(nonce, userLogin ? '아이디 또는 비밀번호가 맞지 않아요.' : '토큰이 맞지 않아요.', userLogin)), true;
+        return page(403, (nonce) => loginPage(nonce, userMode ? '아이디 또는 비밀번호가 맞지 않아요.' : '토큰이 맞지 않아요.', userMode)), true;
       }
       if (path === '/harness/logout') {
         if (req.method !== 'POST') return send(res, 405, { error: 'method not allowed' }, { Allow: 'POST' }), true;
@@ -301,7 +313,7 @@ export function createHarnessApi({ store, dashboardToken, dashboardUser, dashboa
       // 대시보드 페이지: 로그인 전에는 로그인 폼
       if (isPage) {
         if (req.method !== 'GET') return send(res, 405, { error: 'method not allowed' }, { Allow: 'GET' }), true;
-        if (who !== 'dashboard') return page(200, (nonce) => loginPage(nonce, undefined, userLogin)), true;
+        if (who !== 'dashboard') { const userMode = await hasAdmins(); return page(200, (nonce) => loginPage(nonce, undefined, userMode)), true; }
         const html = pageHtml ?? await readFile(pageUrl, 'utf8');
         return page(200, (nonce) => html.replaceAll('__NONCE__', nonce)), true;
       }
