@@ -1,16 +1,22 @@
 import { createServer } from 'node:http';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { snapshot, record } from './stats.js';
 import { createApi, verifySignature } from './instagram.js';
 import { loadRepos, ensureReposFile } from './repos.js';
 import { createHandlers } from './handlers.js';
 import { createTokenStore } from './tokens.js';
 import { createRepoSync } from './sync.js';
+import { createClient } from '../scripts/lib/supabase.js';
+import { createStore } from '../scripts/lib/store.js';
+import { syncAgents } from '../scripts/lib/agents-sync.js';
+import { createHarnessApi } from './harness-api.js';
 
 const {
   PORT = 3000, VERIFY_TOKEN, DASHBOARD_TOKEN, TOKENS_FILE = 'data/tokens.json',
   REPOS_SYNC_REPO, REPOS_SYNC_BRANCH = 'main', REPOS_SYNC_PATH = 'data/repos.json',
   REPOS_SYNC_INTERVAL_MIN = '5', GITHUB_TOKEN,
+  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, HARNESS_API_TOKEN, HARNESS_SYNC = '1',
 } = process.env;
 
 // 한국어/영어 계정 분리 운영: 환경변수에 설정된 계정만 활성화
@@ -51,6 +57,25 @@ const repoSync = createRepoSync({
 repoSync.start(Math.max(1, Number(REPOS_SYNC_INTERVAL_MIN)) * 60 * 1000);
 
 const handleWebhook = createHandlers({ accounts, loadRepos });
+
+// 하네스 (CLAUDE.md): Supabase가 설정된 때만 켠다. 없으면 /api/harness/*는 503.
+const appRoot = fileURLToPath(new URL('..', import.meta.url));
+const harnessDb = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY ? createClient() : null;
+const harnessApi = createHarnessApi({
+  store: harnessDb ? createStore(harnessDb) : null,
+  dashboardToken: DASHBOARD_TOKEN,
+  agentToken: HARNESS_API_TOKEN,
+  sprites: readdirSync(new URL('./assets/char/', import.meta.url)).filter((f) => f.endsWith('.png')).map((f) => f.slice(0, -4)),
+  pageUrl: new URL('./harness.html', import.meta.url),
+  supabaseUrl: SUPABASE_URL,
+  onError: (e) => { record('-', 'error', { detail: `harness: ${String(e.message).slice(0, 180)}` }); console.error(e); },
+});
+if (!harnessDb) console.warn('SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY가 없어 하네스 API를 끕니다');
+else if (HARNESS_SYNC !== '0') {
+  // agents/*.md → Supabase. 실패해도 서버(웹훅)는 계속 돌아간다
+  syncAgents({ db: harnessDb, root: appRoot, log: console.log })
+    .catch((e) => { record('-', 'error', { detail: `agents 동기화: ${String(e.message).slice(0, 180)}` }); console.error(e.message); });
+}
 
 const dashboardHtml = new URL('./dashboard.html', import.meta.url);
 const agentsDir = new URL('../.claude/agents/', import.meta.url);
@@ -119,6 +144,8 @@ createServer(async (req, res) => {
       return res.writeHead(404).end();
     }
   }
+
+  if (await harnessApi.handle(req, res, url)) return;
 
   // 대시보드: DASHBOARD_TOKEN이 설정되어 있고 일치할 때만 접근 허용
   if (url.pathname === '/dashboard' || url.pathname === '/api/stats') {

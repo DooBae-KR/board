@@ -4,3 +4,6 @@ node_modules
 data/tokens.json
 data/activity.jsonl
 docs
+motion/.build
+netlify
+dist

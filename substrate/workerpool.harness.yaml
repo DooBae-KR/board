@@ -1,0 +1,13 @@
+# Agent Substrate WorkerPool — 미리 띄워 둔 빈 샌드박스(Worker) 묶음 (CLAUDE.md 4장)
+# API는 아직 바뀌는 중입니다. 적용 전 agent-substrate 저장소의 docs/api-guide.md로 필드를 확인하세요.
+apiVersion: ate.dev/v1alpha1
+kind: WorkerPool
+metadata:
+  name: harness-pool
+  namespace: harness
+  labels:
+    app.kubernetes.io/part-of: harness
+spec:
+  replicas: 4                      # 동시에 깨어 있을 수 있는 에이전트 수. 에이전트 수보다 작아도 된다(유휴 Actor는 스냅샷으로 내려감)
+  ateomImage: ko://github.com/agent-substrate/substrate/cmd/ateom-gvisor
+  # sandboxClass 기본값은 gvisor. 더 강한 격리가 필요하면 microvm 풀을 따로 만든다.

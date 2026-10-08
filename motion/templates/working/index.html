@@ -1,0 +1,42 @@
+<!doctype html>
+<!-- HyperFrames 컴포지션 템플릿: 업무 중: 빠른 들썩임과 반짝이 (CLAUDE.md 5장)
+     scripts/render-motions.js가 __COMP_ID__와 assets/char.png를 에이전트별로 바꿔 렌더한다.
+     규칙: 타임라인은 paused로 만들고 window.__timelines에 등록. setTimeout·requestAnimationFrame·Math.random·현재 시각 사용 금지. -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>__COMP_ID__</title>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<style>
+  html, body { margin: 0; background: #E8E4F8; }
+  #stage { position: relative; width: 512px; height: 512px; overflow: hidden; background: #E8E4F8; }
+
+  #char { position: absolute; left: 116px; bottom: 76px; width: 280px; image-rendering: pixelated; display: block; }
+  #shadow { position: absolute; left: 166px; bottom: 64px; width: 180px; height: 22px; border-radius: 50%; background: rgba(60, 50, 130, .18); }
+  .spark { position: absolute; width: 22px; height: 22px; background: #F2C94C; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); opacity: 0; }
+  #s1 { left: 96px; top: 120px; } #s2 { right: 100px; top: 96px; } #s3 { right: 80px; top: 220px; }
+  #q { position: absolute; right: 120px; top: 70px; font: 700 64px/1 system-ui, sans-serif; color: #D4506A; opacity: 0; }
+</style>
+</head>
+<body>
+<div id="stage" data-composition-id="__COMP_ID__" data-start="0" data-width="512" data-height="512">
+  <div id="shadow" class="clip" data-start="0" data-duration="3" data-track-index="0"></div>
+  <img id="char" class="clip" src="assets/char.png" alt="" data-start="0" data-duration="3" data-track-index="1">
+  <i id="s1" class="clip spark" data-start="0" data-duration="3" data-track-index="2"></i>
+  <i id="s2" class="clip spark" data-start="0" data-duration="3" data-track-index="3"></i>
+  <i id="s3" class="clip spark" data-start="0" data-duration="3" data-track-index="4"></i>
+  <span id="q" class="clip" data-start="0" data-duration="3" data-track-index="5">?</span>
+</div>
+<script>
+  const tl = gsap.timeline({ paused: true });
+  tl.to("#char", { y: -4, duration: 0.25, ease: "steps(2)", yoyo: true, repeat: 11 }, 0);
+  ["#s1", "#s2", "#s3"].forEach((s, i) => {
+    tl.fromTo(s, { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.3, ease: "steps(3)" }, 0.4 + i * 0.8)
+      .to(s, { opacity: 0, duration: 0.3, ease: "steps(2)" }, 0.9 + i * 0.8);
+  });
+  tl.set({}, {}, 3);   // 클립 길이를 3초로 고정
+  window.__timelines = window.__timelines || {};
+  window.__timelines["__COMP_ID__"] = tl;
+</script>
+</body>
+</html>

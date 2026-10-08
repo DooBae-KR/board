@@ -1,0 +1,38 @@
+# Agent Substrate ActorTemplate — 하네스 에이전트 공용 실행 틀 (CLAUDE.md 4장)
+# 에이전트 1명 = Actor 1개. 생성:
+#   kubectl ate create atespace harness
+#   kubectl ate create actor <agent-id> -a harness --template=harness-agent
+# 주의
+#  - 이미지는 반드시 다이제스트(@sha256:...)로 고정한다.
+#  - 템플릿 하나에는 VM 종류 하나만 쓴다. GPU 패스스루·EgressPolicy는 지원되지 않는다.
+#  - 스냅샷에서 복원되면 열린 연결은 끊겨 있다. harness-report.js는 호출마다 새로 연결한다.
+#  - 필드는 agent-substrate/substrate의 docs/api-guide.md 기준: containers(name,image,env,readyz), pauseImage, snapshotsConfig.location, sandboxClass, workerSelector.
+#  - env는 value 또는 valueFrom.secretKeyRef만 지원한다. Secret을 바꿔도 Actor·스냅샷은 갱신되지 않으므로 교체 시 골든 스냅샷을 다시 만든다.
+apiVersion: ate.dev/v1alpha1
+kind: ActorTemplate
+metadata:
+  name: harness-agent
+  namespace: harness
+  labels:
+    app.kubernetes.io/part-of: harness
+spec:
+  pauseImage: "gcr.io/gke-release/pause@sha256:<digest>"
+  containers:
+    - name: agent
+      image: "<registry>/harness-agent@sha256:<digest>"   # agents/<id>.md를 읽고 업무를 수행하는 런타임 이미지
+      env:
+        - name: AGENT_ID                # Actor 이름과 같은 값. 런타임이 agents/$AGENT_ID.md를 읽는다
+          value: ""                     # 실제 값 주입 방식은 api-guide 확인 (Actor별 오버라이드)
+        # 에이전트는 Supabase에 직접 닿지 않는다. 배포된 서버의 보고 API만 쓴다 (서비스 롤 키는 서버에만 있다)
+        - name: HARNESS_API_URL
+          value: "https://<배포한 서버 주소>"
+        - name: HARNESS_API_TOKEN
+          valueFrom: { secretKeyRef: { name: harness-api, key: token } }   # 서버의 HARNESS_API_TOKEN과 같은 값
+      readyz:
+        httpGet: { path: /readyz, port: 8080 }   # 필드 이름은 docs/api-guide.md 기준(readyz). 하위 형식은 적용 전 확인
+  sandboxClass: gvisor
+  workerSelector:
+    matchLabels:
+      ate.dev/pool: harness-pool
+  snapshotsConfig:
+    location: gs://<bucket>/snapshots/harness-agent/

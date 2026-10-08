@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>하네스 대시보드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&family=Silkscreen&display=swap">
+<style nonce="__NONCE__">
+/* Layout: 픽셀 감성 라벤더 콘솔 — 좌측 부서 메뉴(동적) + 우측 12칸 위젯 그리드, 모바일은 상단 가로 메뉴 */
+:root{
+  --bg:#F2F0FA; --surface:#FFFFFF; --soft:#E8E4F8; --line:#D9D3F1;
+  --ink:#2C2852; --muted:#6E6896; --accent:#6F62D2; --accent-ink:#FFFFFF;
+  --pink:#EE86AE; --mint:#5DBFA4; --peach:#F0A267; --sky:#6AA8E8; --lilac:#B08AE0;
+  --good:#2F9E77; --warn:#C98318; --bad:#D4506A;
+  --shadow:0 1px 0 #D9D3F1, 0 6px 18px -10px rgba(60,50,130,.28);
+  --f-display:"Jua","Gowun Dodum",system-ui,sans-serif;
+  --f-body:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-pixel:"Silkscreen","Courier New",monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#15142A; --surface:#1F1D3A; --soft:#2A2750; --line:#36325F;
+  --ink:#EDEBFC; --muted:#A39FCB; --accent:#A79BFF; --accent-ink:#15142A;
+  --pink:#F49ABE; --mint:#72D3B8; --peach:#F5B07E; --sky:#82B9F0; --lilac:#C3A2EE;
+  --good:#5ACB9E; --warn:#E6AE4E; --bad:#F07A92;
+  --shadow:0 1px 0 #2C2950, 0 10px 24px -14px rgba(0,0,0,.6); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#15142A; --surface:#1F1D3A; --soft:#2A2750; --line:#36325F;
+  --ink:#EDEBFC; --muted:#A39FCB; --accent:#A79BFF; --accent-ink:#15142A;
+  --pink:#F49ABE; --mint:#72D3B8; --peach:#F5B07E; --sky:#82B9F0; --lilac:#C3A2EE;
+  --good:#5ACB9E; --warn:#E6AE4E; --bad:#F07A92;
+  --shadow:0 1px 0 #2C2950, 0 10px 24px -14px rgba(0,0,0,.6); color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100%}
+
+/* sidebar */
+.side{background:var(--surface);border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:18px;position:sticky;top:env(safe-area-inset-top,0px);height:100vh;overflow:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:0 6px}
+.brand img{width:44px;height:44px;border-radius:12px;background:var(--soft);object-fit:cover;image-rendering:pixelated}
+.brand b{font-family:var(--f-pixel);font-size:17px;letter-spacing:.04em;display:block;line-height:1.1}
+.brand small{color:var(--muted);font-size:12px}
+.menu-label{font-family:var(--f-pixel);font-size:10px;letter-spacing:.14em;color:var(--muted);padding:0 8px;text-transform:uppercase}
+.menu{display:flex;flex-direction:column;gap:4px;list-style:none;margin:0;padding:0}
+.mi{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:8px 10px;border-radius:10px;text-align:left;color:var(--ink)}
+.mi:hover{background:var(--soft)}
+.mi[aria-current="page"]{background:var(--accent);color:var(--accent-ink)}
+.mi[aria-current="page"] .cnt{background:rgba(255,255,255,.25);color:inherit}
+.mi .dot{width:10px;height:10px;border-radius:3px;flex:none;box-shadow:inset 0 0 0 2px rgba(0,0,0,.08)}
+.mi .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mi .cnt{font-family:var(--f-pixel);font-size:10px;background:var(--soft);color:var(--muted);border-radius:6px;padding:1px 6px}
+/* tree menu */
+.menu ul{list-style:none;margin:2px 0 4px 17px;padding:0 0 0 6px;border-left:1px dashed var(--line);display:flex;flex-direction:column;gap:2px}
+.row{display:flex;align-items:center;gap:2px}
+.caret{width:22px;height:28px;flex:none;border:0;background:none;color:var(--muted);border-radius:6px;display:grid;place-items:center;padding:0}
+.caret:hover{background:var(--soft)}
+.caret::before{content:"";border-left:6px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;transition:transform .15s}
+.caret[aria-expanded="true"]::before{transform:rotate(90deg)}
+.caret.none{visibility:hidden}
+.row .mi{flex:1;min-width:0}
+.leaf{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:4px 8px;border-radius:8px;text-align:left;color:var(--muted);font-size:13px}
+.leaf:hover{background:var(--soft);color:var(--ink)}
+.leaf .wt{flex:none;min-width:30px}
+.leaf span:last-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.w.flash{animation:flash 1.2s ease}
+@keyframes flash{0%{box-shadow:0 0 0 3px var(--accent)}100%{box-shadow:0 0 0 0 transparent}}
+.crumb{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.crumb button{border:0;background:none;padding:0;color:var(--muted);font:inherit;letter-spacing:inherit;text-transform:inherit}
+.crumb button:hover{color:var(--accent)}
+
+/* org tree page */
+.orgwrap{overflow-x:auto;padding-bottom:8px}
+.org,.org ul{list-style:none;margin:0;padding:0}
+.org ul{padding-left:28px;position:relative}
+.org li{position:relative;padding:6px 0 6px 22px}
+.org li::before{content:"";position:absolute;left:0;top:0;bottom:0;border-left:2px solid var(--line)}
+.org li:last-child::before{bottom:auto;height:34px}
+.org li::after{content:"";position:absolute;left:0;top:34px;width:18px;border-top:2px solid var(--line)}
+.org>li{padding-left:0}.org>li::before,.org>li::after{display:none}
+.onode{display:inline-flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 14px 8px 8px;text-align:left;color:var(--ink);min-width:240px;max-width:100%}
+.onode:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+.onode img{width:44px;height:44px;border-radius:10px;object-fit:cover;object-position:top;background:var(--soft);flex:none}
+.onode b{font-family:var(--f-display);font-weight:400;font-size:17px;display:block;line-height:1.2}
+.onode small{color:var(--muted);font-size:12px}
+.onode.root{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.onode.root small{color:inherit;opacity:.8}
+.onode .sw{width:4px;align-self:stretch;border-radius:3px;flex:none}
+.wleaf{display:inline-flex;align-items:center;gap:8px;border:1px dashed var(--line);background:var(--bg);border-radius:10px;padding:5px 12px;font-size:13px;color:var(--ink)}
+.wleaf:hover{border-color:var(--accent)}
+.org li.wl::after{top:22px}.org li.wl:last-child::before{height:22px}
+/* agent crew */
+.crewhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.crewhead h2{font-family:var(--f-display);font-weight:400;font-size:20px;margin:0}
+.crewhead small{color:var(--muted)}
+.crew{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+.ag{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.ag .top{display:flex;gap:12px;align-items:center}
+.av{width:58px;height:58px;border-radius:14px;flex:none;position:relative;background:var(--soft);border:3px solid var(--ring,var(--line))}
+.av img{width:100%;height:100%;object-fit:cover;object-position:top;border-radius:10px;display:block}
+.ag .who{min-width:0;flex:1}
+.ag .who b{font-family:var(--f-display);font-weight:400;font-size:17px;display:block;line-height:1.2}
+.model{display:inline-block;font-family:var(--f-pixel);font-size:9px;letter-spacing:.08em;padding:1px 7px;border-radius:5px;color:#fff;margin-top:3px}
+.pill{font-size:11px;border-radius:6px;padding:1px 8px;flex:none;align-self:flex-start}
+.pill.working{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+.pill.waiting{background:var(--soft);color:var(--muted)}
+.pill.blocked{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.pill.done{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+.task{font-size:14.5px;line-height:1.45}
+.task small{display:block;color:var(--muted);font-size:12px}
+.prog{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px}
+.prog .track{height:10px;background:var(--soft);border-radius:3px;overflow:hidden;background-image:repeating-linear-gradient(90deg,transparent 0 9px,var(--surface) 9px 10px)}
+.prog .fill{height:100%;background:var(--pcol,var(--accent));border-radius:3px;transition:width .4s}
+.prog em{font-style:normal;font-family:var(--f-pixel);font-size:11px;font-variant-numeric:tabular-nums;min-width:34px;text-align:right}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:3px;font-size:13px}
+.steps li{display:flex;gap:8px;align-items:baseline;color:var(--muted)}
+.steps li::before{content:"";width:8px;height:8px;border-radius:2px;border:1.5px solid currentColor;flex:none;transform:translateY(1px)}
+.steps li.d{text-decoration:line-through;opacity:.7}.steps li.d::before{background:var(--good);border-color:var(--good)}
+.steps li.c{color:var(--ink)}.steps li.c::before{background:var(--accent);border-color:var(--accent)}
+.ag .foot{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.ag .foot span{flex:1}
+.ag.add{align-items:center;justify-content:center;border:1.5px dashed var(--accent);color:var(--accent);background:transparent;font-family:var(--f-display);font-size:16px;min-height:200px}
+.ag.add .stack{display:flex}.ag.add .stack img{width:44px;height:44px;border-radius:12px;object-fit:cover;object-position:top;border:2px solid var(--bg);margin-left:-10px;background:var(--soft)}
+.ag.flash{animation:flash 1.2s ease}
+.avstack{display:flex;align-items:center}
+.avstack img{width:28px;height:28px;border-radius:8px;object-fit:cover;object-position:top;border:2px solid var(--surface);margin-left:-6px;background:var(--soft)}
+.avstack img:first-child{margin-left:0}
+.avstack span{font-size:12px;color:var(--muted);margin-left:8px}
+.leaf img{width:18px;height:18px;border-radius:5px;object-fit:cover;object-position:top;flex:none}
+.leaf .ln{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leaf .pct{margin-left:auto;font-family:var(--f-pixel);font-size:9px;flex:none}
+.aleaf{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:5px 12px 5px 5px;font-size:13px;color:var(--ink);min-width:220px;text-align:left}
+.aleaf:hover{border-color:var(--accent)}
+.aleaf img{width:32px;height:32px;border-radius:8px;object-fit:cover;object-position:top;border:2px solid var(--ring,var(--line))}
+.aleaf .mini{display:block;width:90px;height:5px;background:var(--soft);border-radius:2px;margin-top:3px;overflow:hidden}
+.aleaf .mini i{display:block;height:100%;background:var(--ring,var(--accent))}
+.range{display:flex;align-items:center;gap:10px}.range input{flex:1}
+.where{display:flex;gap:8px;align-items:center;border:0;background:var(--bg);border-radius:8px;padding:5px 10px;font-size:13px;color:var(--ink);text-align:left}
+.where span{font-family:var(--f-pixel);font-size:9px;letter-spacing:.08em;color:var(--muted)}
+.where:hover{color:var(--accent)}
+.linkish{border:0;background:none;padding:0;font:inherit;color:inherit;text-align:left}
+.linkish:hover{color:var(--accent)}
+.pickgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;max-height:260px;overflow:auto}
+.pick{display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);background:var(--bg);border-radius:12px;padding:6px;text-align:left}
+.pick img{width:40px;height:40px;border-radius:9px;object-fit:cover;object-position:top;flex:none}
+.pick b{font-family:var(--f-display);font-weight:400;display:block}
+.pick small{color:var(--muted);font-size:12px}
+.pick[aria-pressed="true"]{border-color:var(--accent);background:var(--soft)}
+.add-btn{display:flex;align-items:center;justify-content:center;gap:6px;border:1.5px dashed var(--accent);color:var(--accent);background:transparent;border-radius:10px;padding:9px;font-family:var(--f-display);font-size:15px}
+.add-btn:hover{background:var(--soft)}
+.side-foot{margin-top:auto;display:flex;flex-direction:column;gap:6px}
+.ghost{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:7px 12px;color:var(--ink);font-size:14px}
+.ghost:hover{background:var(--soft)}
+.primary{border:0;background:var(--accent);color:var(--accent-ink);border-radius:10px;padding:8px 14px;font-family:var(--f-display);font-size:15px}
+.danger{border:1px solid var(--bad);color:var(--bad);background:transparent;border-radius:10px;padding:7px 12px}
+
+/* main */
+.main{padding-block:24px 48px;padding-inline:28px;min-width:0;display:flex;flex-direction:column;gap:20px}
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.eyebrow{font-family:var(--f-pixel);font-size:11px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+h1{font-family:var(--f-display);font-weight:400;font-size:30px;margin:2px 0 0;line-height:1.2;text-wrap:balance}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;border-radius:999px;padding:2px 10px;background:var(--soft);color:var(--muted);vertical-align:middle}
+.chip.live{color:var(--good)} .chip.live::before{content:"";width:7px;height:7px;border-radius:2px;background:var(--good)}
+.chip.idle::before{content:"";width:7px;height:7px;border-radius:2px;background:var(--warn)} .chip.idle{color:var(--warn)}
+.chip.sample{border:1px dashed var(--line)}
+
+/* agent strip */
+.agent{display:flex;align-items:flex-end;gap:14px;background:var(--soft);border-radius:18px;padding:14px 18px 0;overflow:hidden}
+.agent img{width:96px;height:auto;flex:none;image-rendering:auto;margin-bottom:-2px}
+.bubble{position:relative;background:var(--surface);border-radius:16px;padding:12px 16px;margin-bottom:18px;max-width:60ch;box-shadow:var(--shadow);min-width:0}
+.bubble::before{content:"";position:absolute;left:-7px;bottom:16px;width:14px;height:14px;background:var(--surface);transform:rotate(45deg)}
+.bubble b{font-family:var(--f-display);font-weight:400;color:var(--accent)}
+.bubble time{display:block;font-family:var(--f-pixel);font-size:10px;color:var(--muted);margin-top:4px}
+
+/* widgets */
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+.w{grid-column:span 6;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.w.full{grid-column:span 12}.w.third{grid-column:span 4}
+.wh{display:flex;align-items:center;gap:8px}
+.wh h3{font-family:var(--f-display);font-weight:400;font-size:17px;margin:0;flex:1;min-width:0}
+.wt{font-family:var(--f-pixel);font-size:9px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
+.wbtn{border:0;background:none;color:var(--muted);font-size:13px;padding:2px 6px;border-radius:6px}
+.wbtn:hover{background:var(--soft);color:var(--ink)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.kpi{background:var(--bg);border-radius:12px;padding:12px 14px}
+.kpi span{font-size:13px;color:var(--muted)}
+.kpi strong{display:block;font-family:var(--f-display);font-weight:400;font-size:26px;line-height:1.2;font-variant-numeric:tabular-nums}
+.kpi strong small{font-size:14px;color:var(--muted);margin-left:2px}
+.delta{font-size:12px;font-variant-numeric:tabular-nums}.delta.up{color:var(--bad)}.delta.down{color:var(--good)}.delta.upg{color:var(--good)}.delta.downb{color:var(--bad)}
+.donut{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.donut svg{width:132px;height:132px;flex:none}
+.legend{list-style:none;margin:0;padding:0;display:grid;gap:6px;flex:1;min-width:150px}
+.legend li{display:flex;align-items:center;gap:8px;font-size:14px}
+.legend i{width:10px;height:10px;border-radius:3px;flex:none}
+.legend em{margin-left:auto;font-style:normal;font-variant-numeric:tabular-nums;font-family:var(--f-pixel);font-size:12px}
+.bars{display:grid;gap:9px}
+.bar{display:grid;grid-template-columns:minmax(60px,90px) minmax(0,1fr) auto;align-items:center;gap:10px;font-size:14px}
+.bar .track{height:12px;background:var(--soft);border-radius:4px;overflow:hidden}
+.bar .fill{height:100%;border-radius:4px;background:var(--accent)}
+.bar em{font-style:normal;font-family:var(--f-pixel);font-size:11px;font-variant-numeric:tabular-nums}
+.line svg{width:100%;height:150px;display:block}
+.list{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.list li{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px dashed var(--line)}
+.list li:last-child{border-bottom:0}
+.list .t{flex:1;min-width:0}
+.list .t small{display:block;color:var(--muted);font-size:12px}
+.st{font-size:11px;border-radius:6px;padding:1px 8px;flex:none}
+.st.done{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+.st.doing{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent)}
+.st.todo{background:var(--soft);color:var(--muted)}
+.st.risk{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.feed{display:grid;gap:8px;list-style:none;margin:0;padding:0}
+.feed li{background:var(--bg);border-radius:12px 12px 12px 4px;padding:8px 12px;font-size:14px}
+.feed time{display:block;font-family:var(--f-pixel);font-size:10px;color:var(--muted)}
+.empty{color:var(--muted);font-size:14px}
+
+/* overview */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:16px;background:linear-gradient(160deg,#4A4290,#2B275E);color:#F4F2FF;border-radius:20px;padding:24px 24px 0;overflow:hidden;position:relative}
+.hero .copy{padding-bottom:24px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.hero h1{color:#FFF;font-size:32px}
+.hero p{margin:0;color:#D7D2FA;max-width:52ch}
+.hero img{width:200px;max-width:100%;border-radius:14px 14px 0 0;display:block}
+.stats{display:flex;flex-wrap:wrap;gap:22px}
+.stats div{font-family:var(--f-pixel);font-size:10px;letter-spacing:.1em;color:#BDB6F2}
+.stats strong{display:block;font-family:var(--f-display);font-size:26px;color:#FFF;letter-spacing:0;font-weight:400}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.card{display:flex;flex-direction:column;gap:10px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;color:var(--ink);position:relative;overflow:hidden}
+.card:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+.card .top{display:flex;align-items:center;gap:10px}
+.card .top img{width:52px;height:52px;object-fit:cover;object-position:top;border-radius:12px;background:var(--soft)}
+.card h3{margin:0;font-family:var(--f-display);font-weight:400;font-size:18px}
+.card small{color:var(--muted)}
+.card .val{font-family:var(--f-display);font-size:22px;font-variant-numeric:tabular-nums}
+.card .val span{display:block;font-family:var(--f-body);font-size:12px;color:var(--muted)}
+.card .stripe{position:absolute;left:0;top:0;bottom:0;width:4px}
+.card svg{width:100%;height:36px}
+.card.add{align-items:center;justify-content:center;border:1.5px dashed var(--accent);color:var(--accent);min-height:160px;font-family:var(--f-display);font-size:17px;background:transparent}
+.card.add img{width:72px;opacity:.9}
+
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(20,18,45,.5);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.modal{background:var(--surface);border-radius:18px;width:min(560px,100%);max-height:calc(100% - 32px);overflow:auto;padding:22px;display:flex;flex-direction:column;gap:16px;box-shadow:0 30px 60px -20px rgba(0,0,0,.4)}
+.modal h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:22px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field>label,.field>.lbl{font-size:13px;color:var(--muted)}
+.field input,.field textarea{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:9px 12px;width:100%}
+.field textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;min-height:220px;resize:vertical}
+.opts{display:flex;flex-wrap:wrap;gap:8px}
+.opt{border:1.5px solid var(--line);background:var(--bg);border-radius:10px;padding:6px 12px;font-size:14px}
+.opt[aria-pressed="true"]{border-color:var(--accent);background:var(--soft);color:var(--accent)}
+.poses{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px}
+.poses button{border:2px solid transparent;background:var(--soft);border-radius:12px;padding:2px;aspect-ratio:1;overflow:hidden}
+.poses img{width:100%;height:100%;object-fit:cover;object-position:top;border-radius:9px}
+.poses button[aria-pressed="true"]{border-color:var(--accent)}
+.swatches{display:flex;gap:8px}
+.swatches button{width:30px;height:30px;border-radius:9px;border:3px solid var(--surface);box-shadow:0 0 0 1px var(--line)}
+.swatches button[aria-pressed="true"]{box-shadow:0 0 0 2px var(--accent)}
+.mfoot{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.err{color:var(--bad);font-size:13px;margin:0}
+pre.code{background:var(--bg);border-radius:10px;padding:12px;font-size:12px;overflow-x:auto;margin:0;line-height:1.5}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 18px;border-radius:999px;font-size:14px;z-index:60}
+
+@media (max-width:1000px){.w.third{grid-column:span 6}}
+@media (max-width:820px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .side{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:14px 16px;gap:12px}
+  .menu{max-height:46vh;overflow:auto}
+  .menu-label,.side-foot .ghost.sm-hide{display:none}
+  .side-foot{margin-top:0;flex-direction:row;flex-wrap:wrap}
+  .main{padding-inline:16px}
+  .w,.w.third{grid-column:span 12}
+  .hero{grid-template-columns:minmax(0,1fr)}.hero img{width:150px;justify-self:end}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.av video{width:100%;height:100%;object-fit:cover;border-radius:10px;display:block;background:var(--soft)}
+.pill.failed{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.stale{font-size:11px;color:var(--warn);border:1px solid var(--warn);border-radius:6px;padding:0 6px;margin-left:6px}
+.conn{font-size:12px;color:var(--muted)}.conn.bad{color:var(--bad)}
+.ev{display:grid;gap:6px;list-style:none;margin:0;padding:0;font-size:14px}
+.ev li{display:flex;gap:10px;align-items:baseline;border-bottom:1px dashed var(--line);padding:6px 0}
+.ev time{font-family:var(--f-pixel);font-size:10px;color:var(--muted);flex:none;min-width:54px}
+.ev b{font-weight:400;font-family:var(--f-display)}
+.ex{font-family:var(--f-pixel);font-size:9px;border:1px dashed var(--line);border-radius:5px;padding:0 5px;color:var(--muted);margin-left:4px}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" aria-label="부서 메뉴">
+    <div class="brand"><img src="/assets/char/idle.png" alt=""><div><b>HARNESS</b><small>부서별 에이전트 대시보드</small></div></div>
+    <div class="menu-label">Dashboard</div>
+    <ul class="menu" id="menu"></ul>
+    <button class="add-btn" data-act="add-section" type="button">+ 섹션 추가</button>
+    <div class="side-foot"><span class="conn" id="conn" role="status">연결 중…</span></div>
+  </aside>
+  <main class="main" id="main"></main>
+</div>
+<div id="modalRoot"></div>
+<script nonce="__NONCE__">
+'use strict';
+const TOKEN = new URLSearchParams(location.search).get('token') || '';
+const SPRITES = ['idle','happy','smile','wave','thanks','think','laptop','book','phone','sit','blink','cando','surprised','flustered','sleep'];
+const COLORS = {lavender:'var(--accent)',pink:'var(--pink)',mint:'var(--mint)',peach:'var(--peach)',sky:'var(--sky)'};
+const SERIES = ['var(--accent)','var(--pink)','var(--mint)','var(--peach)','var(--sky)','var(--lilac)'];
+const TYPE_LABEL = {kpi:'지표',donut:'비율',bars:'막대',line:'추이',list:'목록',feed:'에이전트 메시지'};
+const TYPE_TAG = {kpi:'KPI',donut:'PIE',bars:'BAR',line:'LINE',list:'LIST',feed:'MSG'};
+const ITEM_STATUS = {done:'완료',doing:'진행중',todo:'예정',risk:'주의'};
+const AGENT_STATUS = {working:'진행중',waiting:'대기',blocked:'확인 필요',done:'완료',failed:'실패'};
+const STATUS_RING = {working:'var(--accent)',waiting:'var(--line)',blocked:'var(--bad)',done:'var(--good)',failed:'var(--bad)'};
+const CLIP_FOR = {working:'working',waiting:'idle',done:'done',blocked:'blocked',failed:'blocked'};
+const WALK_MS = 60000;
+const FALLBACK_COLORS = ['#7A5BC9','#3E83C9','#2C9C7E','#C25A7C','#B8702A','#5868C9','#8A6A3C'];
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+const fmt = n => typeof n === 'number' ? n.toLocaleString('ko-KR') : esc(n);
+const $ = id => document.getElementById(id);
+const sprite = p => `/assets/char/${SPRITES.includes(p) ? p : 'idle'}.png`;
+const hex = c => (/^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : null);
+const agentColor = a => hex(a.color) || FALLBACK_COLORS[[...a.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997, 0) % FALLBACK_COLORS.length];
+const ago = iso => { if (!iso) return ''; const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000); if (s < 60) return '방금'; if (s < 3600) return Math.floor(s / 60) + '분 전'; if (s < 86400) return Math.floor(s / 3600) + '시간 전'; return Math.floor(s / 86400) + '일 전'; };
+
+const state = { data: { sections: [], widgets: [], agents: [], events: [] }, loaded: false, active: 'overview', collapsed: {}, filter: 'all', etag: null };
+const sec = id => state.data.sections.find(s => s.id === id);
+const kids = pid => state.data.sections.filter(s => (s.parent_id || null) === pid || (pid === null && s.parent_id && !sec(s.parent_id)));
+const agentsIn = sid => state.data.agents.filter(a => a.section_id === sid);
+const lobby = () => state.data.agents.filter(a => !a.section_id || !sec(a.section_id));
+const widgetsOf = sid => state.data.widgets.filter(w => w.section_id === sid);
+const ancestors = s => { const out = []; let p = s.parent_id && sec(s.parent_id); while (p && out.length < 20) { out.unshift(p); p = p.parent_id && sec(p.parent_id); } return out; };
+const secPath = s => s ? ancestors(s).map(a => a.name).concat(s.name).join(' › ') : '대기실';
+const descendantIds = id => { const out = new Set([id]); let grew = true; while (grew) { grew = false; state.data.sections.forEach(s => { if (s.parent_id && out.has(s.parent_id) && !out.has(s.id)) { out.add(s.id); grew = true; } }); } return out; };
+const agentCount = s => [...descendantIds(s.id)].reduce((n, id) => n + agentsIn(id).length, 0);
+const pct = a => Math.max(0, Math.min(100, Math.round(num(a.progress))));
+const stepInfo = a => { const s = a.steps || []; const i = s.findIndex(x => !x.done); return { i, n: s.length, done: s.filter(x => x.done).length }; };
+
+/* ---------- API ---------- */
+async function api(method, path, body) {
+  const res = await fetch(path, { method, headers: { Authorization: 'Bearer ' + TOKEN, ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const out = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(out.error || `요청 실패 (${res.status})`);
+  return out;
+}
+// 변화가 없으면 간격을 늘린다(5초 → 최대 60초). 서버리스 호출 수를 아끼기 위해서다.
+let pollMs = 5000, pollTimer = null;
+const schedule = () => { clearTimeout(pollTimer); pollTimer = setTimeout(async () => { await poll(); schedule(); }, pollMs); };
+const wake = () => { pollMs = 5000; schedule(); };
+async function poll() {
+  if (document.hidden) return;
+  try {
+    const res = await fetch('/api/harness', { headers: { Authorization: 'Bearer ' + TOKEN, ...(state.etag ? { 'If-None-Match': state.etag } : {}) } });
+    if (res.status === 304) { pollMs = Math.min(60000, Math.round(pollMs * 1.5)); setConn(true); return; }
+    pollMs = 5000;
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(out.error || String(res.status));
+    state.etag = res.headers.get('ETag'); state.data = out; state.loaded = true; setConn(true); render();
+  } catch (e) { setConn(false, e.message); }
+}
+function setConn(ok, msg) { const c = $('conn'); c.className = 'conn' + (ok ? '' : ' bad'); c.textContent = ok ? '실시간 연결됨 · ' + new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '연결 안 됨: ' + msg; }
+
+/* ---------- charts & widgets ---------- */
+function donutSVG(items) {
+  const total = items.reduce((a, b) => a + num(b.value), 0) || 1; let acc = 0; const r = 48, c = 2 * Math.PI * r;
+  const segs = items.map((it, i) => { const len = num(it.value) / total * c; const s = `<circle cx="66" cy="66" r="${r}" fill="none" stroke="${SERIES[i % SERIES.length]}" stroke-width="22" stroke-dasharray="${len} ${c - len}" stroke-dashoffset="${-acc}" transform="rotate(-90 66 66)"/>`; acc += len; return s; }).join('');
+  return `<svg viewBox="0 0 132 132" role="img" aria-label="비율 차트"><circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--soft)" stroke-width="22"/>${segs}<text x="66" y="62" text-anchor="middle" fill="var(--muted)" font-size="10">합계</text><text x="66" y="80" text-anchor="middle" fill="var(--ink)" font-size="16">${fmt(Math.round(total * 10) / 10)}</text></svg>`;
+}
+function lineSVG(labels, values, color, mini) {
+  values = (Array.isArray(values) ? values : []).map(num); if (!values.length) return '';
+  const W = 520, H = mini ? 36 : 150, pl = mini ? 2 : 34, pr = mini ? 4 : 14, pt = mini ? 4 : 12, pb = mini ? 4 : 26;
+  const max = Math.max(...values), min = Math.min(0, ...values), top = max === min ? min + 1 : max;
+  const x = i => pl + (values.length === 1 ? 0 : i * (W - pl - pr) / (values.length - 1));
+  const y = v => pt + (1 - (v - min) / (top - min)) * (H - pt - pb);
+  const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  let grid = '';
+  if (!mini) {
+    for (let k = 0; k <= 2; k++) { const v = min + (top - min) * k / 2, yy = y(v); grid += `<line x1="${pl}" x2="${W - pr}" y1="${yy}" y2="${yy}" stroke="var(--line)" stroke-dasharray="3 4"/><text x="${pl - 6}" y="${yy + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${fmt(Math.round(v * 10) / 10)}</text>`; }
+    grid += (Array.isArray(labels) ? labels : []).slice(0, values.length).map((l, i) => `<text x="${x(i)}" y="${H - 6}" text-anchor="middle" font-size="12" fill="var(--muted)">${esc(l)}</text>`).join('');
+  }
+  const li = values.length - 1;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="추이 차트">${grid}<polygon points="${x(0)},${H - pb} ${pts} ${x(li)},${H - pb}" fill="${color}" opacity=".14"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>${mini ? '' : `<circle cx="${x(li)}" cy="${y(values[li])}" r="4.5" fill="${color}" stroke="var(--surface)" stroke-width="2"/>`}</svg>`;
+}
+function widgetBody(w, s) {
+  const d = w.data || {}; const items = Array.isArray(d.items) ? d.items : []; const col = COLORS[s.color] || 'var(--accent)';
+  switch (w.type) {
+    case 'kpi': return items.length ? `<div class="kpis">${items.map(k => `<div class="kpi"><span>${esc(k.label)}</span><strong>${fmt(k.value)}<small>${esc(k.unit || '')}</small></strong>${k.delta ? `<span class="delta ${/^[a-z]+$/.test(k.dir || '') ? k.dir : ''}">${esc(k.delta)} 지난 기간 대비</span>` : ''}</div>`).join('')}</div>` : '<p class="empty">지표가 없어요.</p>';
+    case 'donut': return items.length ? `<div class="donut">${donutSVG(items)}<ul class="legend">${items.map((it, i) => `<li><i style="background:${SERIES[i % SERIES.length]}"></i>${esc(it.label)}<em>${fmt(it.value)}</em></li>`).join('')}</ul></div>` : '<p class="empty">데이터가 없어요.</p>';
+    case 'bars': { const mx = Math.max(1, ...items.map(i => num(i.value))); return items.length ? `<div class="bars">${items.map(it => `<div class="bar"><span>${esc(it.label)}</span><div class="track"><div class="fill" style="width:${Math.min(100, num(it.value) / mx * 100)}%;background:${col}"></div></div><em>${fmt(it.value)}</em></div>`).join('')}</div>` : '<p class="empty">데이터가 없어요.</p>'; }
+    case 'line': return `<div class="line">${lineSVG(d.labels, d.values, col) || '<p class="empty">데이터가 없어요.</p>'}</div>`;
+    case 'list': return items.length ? `<ul class="list">${items.map(it => { const st = ITEM_STATUS[it.status] ? it.status : 'todo'; return `<li><div class="t">${esc(it.title)}<small>${esc(it.meta || '')}</small></div><span class="st ${st}">${ITEM_STATUS[st]}</span></li>`; }).join('')}</ul>` : '<p class="empty">항목이 없어요.</p>';
+    case 'feed': return items.length ? `<ul class="feed">${items.slice(-4).reverse().map(it => `<li>${esc(it.text)}${it.time ? `<time>${esc(it.time)}</time>` : ''}</li>`).join('')}</ul>` : '<p class="empty">메시지가 없어요.</p>';
+  }
+  return '<p class="empty">알 수 없는 위젯 유형이에요.</p>';
+}
+const sizeClass = w => (['full', 'half', 'third'].includes(w.size) ? (w.size === 'half' ? '' : w.size) : (w.type === 'kpi' ? 'full' : ''));
+
+/* ---------- agent avatar: 렌더된 모션 클립이 있으면 영상, 없으면 정지 스프라이트 (CSS 루프 없음, CLAUDE.md 5-1) ---------- */
+function clipFor(a) {
+  const walking = a.moved_at && Date.now() - Date.parse(a.moved_at) < WALK_MS;
+  const want = walking ? 'walk' : CLIP_FOR[a.status] || 'idle';
+  return (a.clips || []).includes(want) ? want : null;
+}
+function avatar(a) {
+  const clip = clipFor(a);
+  const img = `<img src="${sprite(a.pose)}" alt="${esc(a.name)}">`;
+  if (!clip) return img;
+  const src = `/api/harness/motion/${encodeURIComponent(a.id)}/${clip}?token=${encodeURIComponent(TOKEN)}`;
+  return `<video src="${src}" poster="${sprite(a.pose)}" autoplay loop muted playsinline preload="auto" aria-label="${esc(a.name)}"></video>`;
+}
+document.addEventListener('error', e => { if (e.target instanceof HTMLVideoElement) { const v = e.target; v.replaceWith(Object.assign(new Image(), { src: v.getAttribute('poster'), alt: v.getAttribute('aria-label') || '' })); } }, true);
+
+/* ---------- views ---------- */
+function agentCard(a) {
+  const p = pct(a), cs = stepInfo(a), col = agentColor(a), d = a.section_id && sec(a.section_id);
+  const status = AGENT_STATUS[a.status] ? a.status : 'waiting';
+  const barCol = status === 'blocked' || status === 'failed' ? 'var(--bad)' : status === 'done' ? 'var(--good)' : col;
+  return `<article class="ag" data-anchor="${esc(a.id)}">
+    <div class="top"><div class="av" style="--ring:${STATUS_RING[status]}">${avatar(a)}</div>
+      <div class="who"><b>${esc(a.name)}</b>${a.example ? '<span class="ex">예시</span>' : ''}<br><span class="model" style="background:${col}">${esc(a.role || 'AGENT')}</span>${a.model ? ` <small style="color:var(--muted);font-size:11px">${esc(a.model)}</small>` : ''}</div>
+      <span class="pill ${status}">${AGENT_STATUS[status]}</span></div>
+    <button type="button" class="where" data-nav="${d ? esc(d.id) : 'agents'}"><span>${d ? '근무 부서' : '위치'}</span>${esc(secPath(d))}</button>
+    <div class="task">${a.task ? esc(a.task) : '<span style="color:var(--muted)">맡은 업무 없음</span>'}${a.stale ? '<span class="stale">응답 없음</span>' : ''}${a.note ? `<small>${esc(a.note)}</small>` : ''}</div>
+    ${a.task ? `<div class="prog" style="--pcol:${barCol}"><div class="track" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(a.task)} 진행률"><div class="fill" style="width:${p}%"></div></div><em>${p}%</em></div>` : ''}
+    ${cs.n ? `<ul class="steps">${a.steps.map((x, i) => `<li class="${x.done ? 'd' : i === cs.i ? 'c' : ''}">${esc(x.t)}</li>`).join('')}</ul>` : ''}
+    <div class="foot"><span>${cs.n ? `${cs.done}/${cs.n} 단계 · ` : ''}${esc(ago(a.last_report_at) || '보고 없음')}</span><button class="wbtn" type="button" data-act="move-agent" data-aid="${esc(a.id)}">이동</button></div>
+  </article>`;
+}
+function crewSummary(ags) {
+  const w = ags.filter(a => a.status === 'working').length, b = ags.filter(a => a.status === 'blocked' || a.status === 'failed').length, act = ags.filter(a => a.task);
+  const avg = act.length ? Math.round(act.reduce((t, a) => t + pct(a), 0) / act.length) : 0;
+  return `${ags.length}명 · 진행중 ${w}${b ? ` · <span style="color:var(--bad)">확인 필요 ${b}</span>` : ''}${act.length ? ` · 평균 진행률 ${avg}%` : ''}`;
+}
+const cardHTML = s => {
+  const ags = agentsIn(s.id), up = ancestors(s), kpi = widgetsOf(s.id).find(w => w.type === 'kpi')?.data?.items?.[0], line = widgetsOf(s.id).find(w => w.type === 'line');
+  return `<button type="button" class="card" data-nav="${esc(s.id)}"><span class="stripe" style="background:${COLORS[s.color] || 'var(--accent)'}"></span>
+    <div class="top"><img src="${sprite(s.pose)}" alt=""><div><h3>${esc(s.name)}</h3><small>${up.length ? esc(up.map(a => a.name).join(' › ')) : '최상위 부서'}</small></div></div>
+    ${kpi ? `<div class="val">${fmt(kpi.value)}${esc(kpi.unit || '')}<span>${esc(kpi.label)}</span></div>` : '<div class="val"><span>지표 없음</span>—</div>'}
+    ${ags.length ? `<div class="avstack">${ags.slice(0, 5).map(a => `<img src="${sprite(a.pose)}" alt="${esc(a.name)}" title="${esc(a.name)}" style="border-color:${STATUS_RING[a.status] || 'var(--line)'}">`).join('')}<span>${esc(ags.slice(0, 3).map(a => a.name).join(', '))}${ags.length > 3 ? ' 외' : ''}${ags.some(a => a.status === 'blocked' || a.status === 'failed') ? ' · 확인 필요' : ''}</span></div>` : ''}
+    ${line ? lineSVG(line.data.labels, line.data.values, COLORS[s.color] || 'var(--accent)', true) : ''}
+    <div><span class="chip ${s.status === 'live' ? 'live' : 'idle'}">${s.status === 'live' ? '에이전트 가동중' : '대기'}</span></div></button>`;
+};
+const eventsHTML = (list, limit = 8) => list.length ? `<ul class="ev">${list.slice(0, limit).map(e => { const a = state.data.agents.find(x => x.id === e.agent_id); return `<li><time>${esc(ago(e.created_at))}</time><span><b>${esc(a ? a.name : e.agent_id)}</b> ${esc(e.message || e.kind)}${e.output ? ` <small style="color:var(--muted)">→ ${esc(e.output)}</small>` : ''}</span></li>`; }).join('')}</ul>` : '<p class="empty">아직 보고가 없어요.</p>';
+
+function overviewHTML() {
+  const d = state.data, n = d.agents;
+  return `<section class="hero"><div class="copy">
+      <div class="eyebrow" style="color:#BDB6F2">Overview · ${new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}</div>
+      <h1>부서별 에이전트 현황</h1>
+      <p>섹션을 추가하면 왼쪽 메뉴에 바로 생기고, 에이전트가 보내는 보고와 위젯이 여기에 채워져요.</p>
+      <div class="stats"><div>SECTIONS<strong>${d.sections.length}</strong></div><div>AGENTS WORKING<strong>${n.filter(a => a.status === 'working').length}<small style="font-size:14px;color:#BDB6F2"> / ${n.length}</small></strong></div><div>NEEDS CHECK<strong>${n.filter(a => a.status === 'blocked' || a.status === 'failed').length}</strong></div><div>WIDGETS<strong>${d.widgets.length}</strong></div></div>
+    </div><img src="${sprite('laptop')}" alt="노트북을 보는 캐릭터"></section>
+  <div class="head"><div><div class="eyebrow">Sections</div><h1 style="font-size:22px">부서 섹션</h1></div></div>
+  <div class="cards">${d.sections.map(cardHTML).join('')}<button type="button" class="card add" data-act="add-section"><img src="${sprite('wave')}" alt="">+ 새 부서 섹션</button></div>
+  <div class="w full"><div class="wh"><h3>최근 활동</h3><span class="wt">LOG</span></div>${eventsHTML(d.events, 10)}</div>`;
+}
+function sectionHTML(s) {
+  const ws = widgetsOf(s.id), ch = kids(s.id), ags = agentsIn(s.id), lastMsg = state.data.events.find(e => e.message && ags.some(a => a.id === e.agent_id));
+  return `<div class="head"><div><div class="eyebrow crumb"><button type="button" data-nav="tree">조직</button>${ancestors(s).map(a => `<span>›</span><button type="button" data-nav="${esc(a.id)}">${esc(a.name)}</button>`).join('')}</div>
+      <h1>${esc(s.name)} <span class="chip ${s.status === 'live' ? 'live' : 'idle'}">${s.status === 'live' ? '가동중' : '대기'}</span></h1></div>
+    <div class="actions"><button class="ghost" type="button" data-act="add-child" data-sid="${esc(s.id)}">+ 하위 섹션</button><button class="danger" type="button" data-act="del-section" data-sid="${esc(s.id)}">삭제</button></div></div>
+  <div class="agent"><img src="${sprite(s.pose)}" alt="${esc(s.name)} 캐릭터"><div class="bubble"><b>${esc(s.name)}</b><br>${lastMsg ? esc(lastMsg.message) : '아직 보낸 메시지가 없어요.'}${lastMsg ? `<time>${esc(ago(lastMsg.created_at))}</time>` : ''}</div></div>
+  <div class="crewhead"><h2>이 부서에서 일하는 에이전트</h2><small>${crewSummary(ags)}</small></div>
+  <div class="crew">${ags.map(agentCard).join('')}${ags.length ? '' : '<p class="empty">배치된 에이전트가 없어요. 에이전트 화면에서 <b>이동</b>으로 보내거나 agents/&lt;id&gt;.md의 department로 지정하세요.</p>'}</div>
+  ${ch.length ? `<div class="eyebrow">하위 섹션 ${ch.length}</div><div class="cards">${ch.map(cardHTML).join('')}</div>` : ''}
+  ${ws.length ? `<div class="eyebrow">위젯</div><div class="grid">${ws.map(w => `<article class="w ${sizeClass(w)}" data-anchor="${esc(w.id)}"><div class="wh"><h3>${esc(w.title)}</h3><span class="wt">${TYPE_LABEL[w.type] || esc(w.type)}</span></div>${widgetBody(w, s)}</article>`).join('')}</div>`
+    : `<div class="agent" style="justify-content:center;background:var(--surface);border:1px dashed var(--line)"><img src="${sprite('sleep')}" style="width:200px" alt="잠든 캐릭터"><div class="bubble">위젯이 없어요. 에이전트가 <code>PUT /api/harness/widgets</code>로 데이터를 보내면 채워져요.</div></div>`}`;
+}
+function rosterHTML() {
+  const f = state.filter, d = state.data;
+  const match = a => f === 'all' || (f === 'lobby' ? !a.section_id || !sec(a.section_id) : f === 'blocked' ? a.status === 'blocked' || a.status === 'failed' : a.status === f);
+  const FL = { all: '전체', working: '진행중', blocked: '확인 필요', done: '완료', lobby: '대기실' };
+  const order = []; const walk = s => { order.push(s); kids(s.id).forEach(walk); }; kids(null).forEach(walk);
+  const groups = order.map(s => ({ s, ags: agentsIn(s.id).filter(match) })).filter(g => g.ags.length);
+  const lob = lobby().filter(match);
+  const count = k => d.agents.filter(a => k === 'all' ? true : k === 'lobby' ? !a.section_id || !sec(a.section_id) : k === 'blocked' ? a.status === 'blocked' || a.status === 'failed' : a.status === k).length;
+  return `<div class="head"><div><div class="eyebrow">Agents</div><h1>에이전트</h1></div></div>
+  <p class="empty" style="margin:0">에이전트는 agents/&lt;id&gt;.md에서 정의하고, 부서 배치와 진행 상황은 에이전트가 보고합니다. ${crewSummary(d.agents)}</p>
+  <div class="opts" role="group" aria-label="에이전트 필터">${Object.entries(FL).map(([k, l]) => `<button type="button" class="opt" data-act="flt" data-v="${k}" aria-pressed="${f === k}">${l} ${count(k)}</button>`).join('')}</div>
+  ${groups.map(g => `<div class="crewhead"><h2><button type="button" class="linkish" data-nav="${esc(g.s.id)}">${esc(secPath(g.s))}</button></h2><small>${crewSummary(agentsIn(g.s.id))}</small></div><div class="crew">${g.ags.map(agentCard).join('')}</div>`).join('')}
+  ${lob.length ? `<div class="crewhead"><h2>대기실</h2><small>아직 부서에 배치되지 않은 에이전트</small></div><div class="crew">${lob.map(agentCard).join('')}</div>` : ''}
+  ${!groups.length && !lob.length ? '<p class="empty">조건에 맞는 에이전트가 없어요.</p>' : ''}`;
+}
+function orgNode(s) {
+  const ch = kids(s.id), ags = agentsIn(s.id), ws = widgetsOf(s.id);
+  return `<li><button type="button" class="onode" data-nav="${esc(s.id)}"><span class="sw" style="background:${COLORS[s.color] || 'var(--accent)'}"></span><img src="${sprite(s.pose)}" alt=""><span><b>${esc(s.name)}</b><small>에이전트 ${ags.length}명 · 위젯 ${ws.length}개</small></span></button>
+    ${ch.length || ags.length || ws.length ? `<ul>${ch.map(orgNode).join('')}${ags.map(a => `<li class="wl"><button type="button" class="aleaf" data-nav="${esc(s.id)}" data-jump="${esc(a.id)}" style="--ring:${STATUS_RING[a.status] || 'var(--line)'}"><img src="${sprite(a.pose)}" alt=""><span><b style="font-weight:400">${esc(a.name)}</b> <span class="model" style="background:${agentColor(a)}">${esc(a.role || 'AGENT')}</span><br><small style="color:var(--muted)">${esc(a.task)}</small><span class="mini"><i style="width:${pct(a)}%"></i></span></span></button></li>`).join('')}${ws.map(w => `<li class="wl"><button type="button" class="wleaf" data-nav="${esc(s.id)}" data-jump="${esc(w.id)}"><span class="wt">${TYPE_TAG[w.type] || ''}</span>${esc(w.title)}</button></li>`).join('')}</ul>` : ''}</li>`;
+}
+function treeHTML() {
+  const d = state.data, lob = lobby();
+  return `<div class="head"><div><div class="eyebrow">Structure</div><h1>조직 구조</h1></div><div class="actions"><button class="primary" type="button" data-act="add-section">+ 섹션 추가</button></div></div>
+  <p class="empty" style="margin:0">본부 아래에 팀을, 팀 아래에 에이전트와 위젯을 둔 구조예요. 노드를 누르면 해당 섹션으로 이동해요.</p>
+  <div class="orgwrap"><ul class="org"><li><span class="onode root"><img src="${sprite('idle')}" alt=""><span><b>HARNESS</b><small>${d.sections.length}개 섹션 · 에이전트 ${d.agents.length}명</small></span></span>
+    <ul>${kids(null).map(orgNode).join('')}${lob.length ? `<li><button type="button" class="onode" data-nav="agents"><span class="sw" style="background:var(--line)"></span><img src="${sprite('sleep')}" alt=""><span><b>대기실</b><small>배치 전 에이전트 ${lob.length}명</small></span></button><ul>${lob.map(a => `<li class="wl"><button type="button" class="aleaf" data-nav="agents" data-jump="${esc(a.id)}"><img src="${sprite(a.pose)}" alt=""><span>${esc(a.name)} <span class="model" style="background:${agentColor(a)}">${esc(a.role || 'AGENT')}</span></span></button></li>`).join('')}</ul></li>` : ''}</ul></li></ul></div>`;
+}
+
+/* ---------- menu & render ---------- */
+function menuNode(s) {
+  const ch = kids(s.id), ags = agentsIn(s.id), ws = widgetsOf(s.id), has = ch.length || ags.length || ws.length, open = !state.collapsed[s.id];
+  return `<li><div class="row"><button type="button" class="caret${has ? '' : ' none'}" data-toggle="${esc(s.id)}" aria-expanded="${open}" aria-label="${esc(s.name)} ${open ? '접기' : '펼치기'}"></button>
+    <button type="button" class="mi" data-nav="${esc(s.id)}" ${state.active === s.id ? 'aria-current="page"' : ''}><span class="dot" style="background:${COLORS[s.color] || 'var(--accent)'}"></span><span class="nm">${esc(s.name)}</span><span class="cnt">${agentCount(s)}</span></button></div>
+    ${open && has ? `<ul>${ch.map(menuNode).join('')}${ags.map(a => `<li><button type="button" class="leaf" data-nav="${esc(s.id)}" data-jump="${esc(a.id)}" title="${esc(a.task)}"><img src="${sprite(a.pose)}" alt=""><span class="ln">${esc(a.name)} · ${esc(a.task || a.role)}</span><span class="pct" style="color:${STATUS_RING[a.status] === 'var(--line)' ? 'var(--muted)' : STATUS_RING[a.status]}">${a.status === 'done' ? 'DONE' : pct(a) + '%'}</span></button></li>`).join('')}${ws.map(w => `<li><button type="button" class="leaf" data-nav="${esc(s.id)}" data-jump="${esc(w.id)}"><span class="wt">${TYPE_TAG[w.type] || ''}</span><span>${esc(w.title)}</span></button></li>`).join('')}</ul>` : ''}</li>`;
+}
+function renderMenu() {
+  const top = [['overview', '전체 현황', 'var(--ink)', state.data.sections.length], ['tree', '조직 구조', 'var(--lilac)', kids(null).length], ['agents', '에이전트', 'var(--pink)', state.data.agents.length]];
+  $('menu').innerHTML = top.map(([id, n, c, k]) => `<li><div class="row"><span class="caret none"></span><button type="button" class="mi" data-nav="${id}" ${state.active === id ? 'aria-current="page"' : ''}><span class="dot" style="background:${c}"></span><span class="nm">${n}</span><span class="cnt">${k}</span></button></div></li>`).join('') + kids(null).map(menuNode).join('');
+}
+function render() {
+  const m = $('main'), keepY = window.scrollY;
+  if (!state.loaded) { m.innerHTML = '<p class="empty">불러오는 중…</p>'; return; }
+  renderMenu();
+  if (state.active === 'tree') m.innerHTML = treeHTML();
+  else if (state.active === 'agents') m.innerHTML = rosterHTML();
+  else if (state.active === 'overview' || !sec(state.active)) { state.active = 'overview'; m.innerHTML = overviewHTML(); }
+  else m.innerHTML = sectionHTML(sec(state.active));
+  window.scrollTo(0, keepY);
+}
+function go(id, jump) {
+  state.active = id; try { history.replaceState(null, '', location.pathname + location.search + (id === 'overview' ? '' : '#' + id)); } catch { /* ignore */ }
+  render(); window.scrollTo(0, 0);
+  if (jump) { const el = [...document.querySelectorAll('[data-anchor]')].find(x => x.dataset.anchor === jump); if (el) { el.scrollIntoView({ block: 'center' }); el.classList.add('flash'); } }
+}
+
+/* ---------- modals ---------- */
+function openModal(html, onMount) {
+  $('modalRoot').innerHTML = `<div class="scrim" data-scrim><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
+  const root = $('modalRoot').querySelector('.modal'); onMount && onMount(root); root.querySelector('input,button')?.focus();
+}
+const closeModal = () => { $('modalRoot').innerHTML = ''; };
+function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2400); }
+const pressGroup = (root, sel) => root.querySelectorAll(sel).forEach(b => b.addEventListener('click', () => { root.querySelectorAll(sel).forEach(x => x.setAttribute('aria-pressed', 'false')); b.setAttribute('aria-pressed', 'true'); }));
+const picked = (root, sel) => root.querySelector(sel + '[aria-pressed="true"]')?.dataset.v;
+function showErr(root, msg) { const e = root.querySelector('.err'); e.textContent = msg; e.hidden = false; }
+const deptOpts = (sel, attr) => { const out = []; const walk = s => { out.push(s); kids(s.id).forEach(walk); }; kids(null).forEach(walk);
+  return `<div class="opts"><button type="button" class="opt" ${attr} data-v="" aria-pressed="${!sel}">대기실</button>${out.map(x => `<button type="button" class="opt" ${attr} data-v="${esc(x.id)}" aria-pressed="${x.id === sel}">${esc(secPath(x))}</button>`).join('')}</div>`; };
+
+function addSectionModal(parentId) {
+  openModal(`<h2>새 부서 섹션</h2>
+    <div class="field"><label for="s-name">이름</label><input id="s-name" maxlength="40" placeholder="예: 채용팀"></div>
+    <div class="field"><span class="lbl">상위 부서</span><div class="opts"><button type="button" class="opt" data-par data-v="" aria-pressed="${!parentId}">없음 (최상위)</button>${state.data.sections.map(s => `<button type="button" class="opt" data-par data-v="${esc(s.id)}" aria-pressed="${s.id === parentId}">${esc(secPath(s))}</button>`).join('')}</div></div>
+    <div class="field"><span class="lbl">캐릭터</span><div class="poses">${SPRITES.map((k, i) => `<button type="button" data-pose data-v="${k}" aria-pressed="${i === 0}" aria-label="${k}"><img src="${sprite(k)}" alt=""></button>`).join('')}</div></div>
+    <div class="field"><span class="lbl">색상</span><div class="swatches">${Object.entries(COLORS).map(([k, v], i) => `<button type="button" data-col data-v="${k}" aria-pressed="${i === 0}" aria-label="${k}" style="background:${v}"></button>`).join('')}</div></div>
+    <p class="err" hidden></p>
+    <div class="mfoot"><button class="ghost" type="button" data-close>취소</button><button class="primary" type="button" id="s-ok">추가</button></div>`,
+  root => {
+    ['[data-par]', '[data-pose]', '[data-col]'].forEach(s => pressGroup(root, s));
+    $('s-ok').addEventListener('click', async () => {
+      const name = $('s-name').value.trim(); if (!name) return showErr(root, '이름을 입력해 주세요.');
+      try {
+        const out = await api('POST', '/api/harness/sections', { name, parent: picked(root, '[data-par]') || undefined, pose: picked(root, '[data-pose]'), color: picked(root, '[data-col]') });
+        closeModal(); state.etag = null; await poll(); go(out.id); toast(`${name} 섹션을 만들었어요`);
+      } catch (e) { showErr(root, e.message); }
+    });
+  });
+}
+function moveModal(a) {
+  const cur = a.section_id && sec(a.section_id);
+  openModal(`<h2>${esc(a.name)} 이동</h2>
+    <div class="agent" style="padding-top:10px"><img src="${sprite(a.pose)}" alt="" style="width:70px"><div class="bubble">지금은 <b>${esc(secPath(cur))}</b>에서 ${a.task ? `‘${esc(a.task)}’ 진행 중이에요.` : '쉬고 있어요.'}</div></div>
+    <div class="field"><span class="lbl">보낼 부서</span>${deptOpts(a.section_id, 'data-dep')}</div>
+    <div class="field"><label for="m-task">새 부서에서 맡을 업무 (비우면 현재 업무 유지)</label><input id="m-task" maxlength="100"></div>
+    <p class="err" hidden></p>
+    <div class="mfoot"><button class="ghost" type="button" data-close>취소</button><button class="primary" type="button" id="m-ok">이동시키기</button></div>`,
+  root => {
+    pressGroup(root, '[data-dep]');
+    $('m-ok').addEventListener('click', async () => {
+      const to = picked(root, '[data-dep]') || '';
+      try {
+        await api('POST', '/api/harness/report', { agent: a.id, kind: 'assign', section: to || '대기실', task: $('m-task').value.trim() || undefined });
+        closeModal(); state.etag = null; await poll(); go(to || 'agents', a.id); toast(to ? `${a.name}이(가) ${sec(to)?.name || ''}에 들어갔어요` : `${a.name}이(가) 대기실로 돌아왔어요`);
+      } catch (e) { showErr(root, e.message); }
+    });
+  });
+}
+function delSectionModal(s) {
+  openModal(`<h2>${esc(s.name)} 삭제</h2><p>이 섹션의 위젯이 함께 삭제돼요. 소속 에이전트는 대기실로 돌아가고, 하위 섹션은 최상위로 올라가요. 되돌릴 수 없어요.</p><p class="err" hidden></p>
+    <div class="mfoot"><button class="ghost" type="button" data-close>취소</button><button class="danger" type="button" id="d-ok">삭제</button></div>`,
+  root => $('d-ok').addEventListener('click', async () => {
+    try { await api('DELETE', '/api/harness/sections/' + s.id); closeModal(); state.etag = null; state.active = 'overview'; await poll(); toast('삭제했어요'); }
+    catch (e) { showErr(root, e.message); }
+  }));
+}
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  if (e.target.matches('[data-scrim]') || e.target.closest('[data-close]')) return closeModal();
+  const tg = e.target.closest('[data-toggle]'); if (tg) { state.collapsed[tg.dataset.toggle] = !state.collapsed[tg.dataset.toggle]; return renderMenu(); }
+  const act = e.target.closest('[data-act]');
+  if (act) {
+    const a = act.dataset.act;
+    if (a === 'add-section') return addSectionModal(null);
+    if (a === 'add-child') return addSectionModal(act.dataset.sid);
+    if (a === 'flt') { state.filter = act.dataset.v; return render(); }
+    if (a === 'move-agent') { const ag = state.data.agents.find(x => x.id === act.dataset.aid); return ag && moveModal(ag); }
+    if (a === 'del-section') { const s = sec(act.dataset.sid); return s && delSectionModal(s); }
+  }
+  const nav = e.target.closest('[data-nav]'); if (nav) go(nav.dataset.nav, nav.dataset.jump);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { poll(); wake(); } });
+document.addEventListener('click', () => { pollMs = 5000; });
+
+state.active = decodeURIComponent(location.hash.slice(1)) || 'overview';
+render(); poll(); schedule();
+</script>
+</body>
+</html>
