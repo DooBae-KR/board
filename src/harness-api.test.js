@@ -320,3 +320,21 @@ test('아이디만 있고 비밀번호가 없으면 아이디 로그인은 꺼�
   assert.equal((await login(t)).res.status, 303);
   t.close();
 });
+
+test('아이디/비밀번호 로그인 세션은 비밀번호가 바뀌면 무효가 된다', async () => {
+  const mk = (pw) => createHarnessApi({ store: null, dashboardToken: DASH, dashboardUser: 'tester', dashboardPassword: pw, agentToken: AGENT, sprites: SPRITES, pageUrl: new URL('./harness.html', import.meta.url), onError: () => {} });
+  const run = async (api, method, path, headers = {}, body) => {
+    const chunks = body ? [Buffer.from(body)] : [];
+    const req = Object.assign(chunks.length ? (async function* () { yield* chunks; })() : (async function* () {})(), { method, headers, url: path });
+    let out = { status: 0, headers: {} };
+    const res = { writeHead(c, h = {}) { out.status = c; out.headers = h; return this; }, end() { return this; } };
+    await api.handle(req, res, new URL(path, 'http://x'));
+    return out;
+  };
+  const a = mk('pw-one');
+  const r = await run(a, 'POST', '/harness/login', { 'content-type': 'application/x-www-form-urlencoded', 'sec-fetch-site': 'same-origin' }, 'username=tester&password=pw-one');
+  assert.equal(r.status, 303);
+  const cookie = r.headers['Set-Cookie'].split(';')[0];
+  assert.notEqual((await run(a, 'GET', '/api/harness', { cookie })).status, 403);
+  assert.equal((await run(mk('pw-two'), 'GET', '/api/harness', { cookie })).status, 403);
+});

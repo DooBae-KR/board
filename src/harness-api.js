@@ -149,6 +149,8 @@ function pageHeaders(nonce, mediaOrigin) {
  */
 export function createHarnessApi({ store, dashboardToken, dashboardUser, dashboardPassword, agentToken, sprites, pageUrl, pageHtml, supabaseUrl, onError = console.error }) {
   const userLogin = !!(dashboardUser && dashboardPassword);
+  // 세션 서명 키: 토큰(서버 환경변수)에 아이디·비밀번호를 묶는다. 셋 중 하나라도 바뀌면 기존 세션이 모두 무효가 된다. 키 자체는 브라우저로 나가지 않는다
+  const sessionKey = dashboardToken ? (userLogin ? `${dashboardToken}\0${dashboardUser}\0${dashboardPassword}` : dashboardToken) : undefined;
   const mediaOrigin = supabaseUrl ? new URL(supabaseUrl).origin : '';
 
   /** 인증 결과: 에이전트·스크립트는 Bearer 헤더, 사람은 로그인 쿠키. 주소의 ?token= 은 받지 않는다 */
@@ -159,7 +161,7 @@ export function createHarnessApi({ store, dashboardToken, dashboardUser, dashboa
       if (sameToken(bearer, agentToken)) return { who: 'agent' };
       return { who: null };
     }
-    if (validSession(dashboardToken, cookieOf(req, COOKIE))) return { who: 'dashboard', viaCookie: true };
+    if (validSession(sessionKey, cookieOf(req, COOKIE))) return { who: 'dashboard', viaCookie: true };
     return { who: null };
   };
 
@@ -271,7 +273,7 @@ export function createHarnessApi({ store, dashboardToken, dashboardUser, dashboa
           : false;
         const okToken = !userLogin && typeof body.token === 'string' && sameToken(body.token, dashboardToken);
         if (dashboardToken && (okUser || okToken)) {
-          return res.writeHead(303, { Location: '/harness', 'Set-Cookie': setCookie(req, url, makeSession(dashboardToken), SESSION_MS / 1000), 'Cache-Control': 'no-store' }).end(), true;
+          return res.writeHead(303, { Location: '/harness', 'Set-Cookie': setCookie(req, url, makeSession(sessionKey), SESSION_MS / 1000), 'Cache-Control': 'no-store' }).end(), true;
         }
         await new Promise((r) => setTimeout(r, 400)); // 무차별 대입을 조금 늦춘다
         return page(403, (nonce) => loginPage(nonce, userLogin ? '아이디 또는 비밀번호가 맞지 않아요.' : '토큰이 맞지 않아요.', userLogin)), true;
