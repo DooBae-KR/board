@@ -89,6 +89,10 @@ node scripts/harness-report.js <id> assign  "부서 이름" ["새 업무"]
 
 환경변수: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DASHBOARD_TOKEN`, `HARNESS_API_TOKEN`. 에이전트 쪽은 `HARNESS_API_URL` + `HARNESS_API_TOKEN`을 두면 `harness-report.js`가 서버로 보낸다.
 
+### Netlify 배포 (samgukji.netlify.app)
+
+`netlify.toml`이 같은 API를 Netlify Function(`netlify/functions/harness.mjs`)으로 낸다. 빌드는 `scripts/netlify-build.js`(페이지·스프라이트 생성, 운영 배포에서만 `agents/*.md` 동기화). 환경변수는 Netlify 사이트 설정에 위 네 개를 넣고 `SUPABASE_SERVICE_ROLE_KEY`는 Secret으로 표시한다. Netlify에는 디스크·상시 프로세스가 없으므로 인스타 웹훅과 토큰 갱신은 이 배포에 포함되지 않는다(Docker/Render 서버 담당). 이 사이트는 예전에 DooBae-KR/smagukji에 연결돼 있었고, 그 저장소의 Netlify 연결을 끊은 뒤 이 저장소(`main`)에 연결한다. smagukji의 DB 테이블은 같은 Supabase 프로젝트에 있지만 2장 1항에 따라 건드리지 않는다.
+
 ## 7. 기존 기능과의 관계
 
 - `.claude/agents/*`(repo-scout 등)는 Claude Code 하위 에이전트 정의이며 기존 `scripts/log-activity.js` 기록을 그대로 쓴다. 하네스로 옮길 때는 `agents/`에 정의를 새로 만들고 보고를 `harness-report.js`로 바꾼다.

@@ -3,3 +3,8 @@ node_modules/
 data/activity.jsonl
 data/tokens.json
 motion/.build/
+
+# Netlify 빌드 산출물
+dist/
+netlify/generated/page.mjs
+.netlify/

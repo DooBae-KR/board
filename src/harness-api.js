@@ -95,11 +95,12 @@ function pageHeaders(nonce, mediaOrigin) {
  * @param {string} [o.dashboardToken]
  * @param {string} [o.agentToken]
  * @param {string[]} o.sprites           허용하는 pose 이름 (src/assets/char/*.png)
- * @param {URL} o.pageUrl                harness.html 위치
+ * @param {URL} [o.pageUrl]              harness.html 위치
+ * @param {string} [o.pageHtml]          harness.html 내용(서버리스처럼 파일을 못 읽을 때). pageUrl보다 우선
  * @param {string} [o.supabaseUrl]       모션 클립 재생을 허용할 출처(CSP)
  * @param {(e: Error) => void} [o.onError]
  */
-export function createHarnessApi({ store, dashboardToken, agentToken, sprites, pageUrl, supabaseUrl, onError = console.error }) {
+export function createHarnessApi({ store, dashboardToken, agentToken, sprites, pageUrl, pageHtml, supabaseUrl, onError = console.error }) {
   const mediaOrigin = supabaseUrl ? new URL(supabaseUrl).origin : '';
 
   const level = (req, url) => {
@@ -177,7 +178,7 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
         if (req.method !== 'GET') return send(res, 405, { error: 'method not allowed' }, { Allow: 'GET' }), true;
         if (who !== 'dashboard') return send(res, 403, { error: 'forbidden' }), true;
         const nonce = randomBytes(16).toString('base64');
-        const html = (await readFile(pageUrl, 'utf8')).replaceAll('__NONCE__', nonce);
+        const html = (pageHtml ?? await readFile(pageUrl, 'utf8')).replaceAll('__NONCE__', nonce);
         return res.writeHead(200, pageHeaders(nonce, mediaOrigin)).end(html), true;
       }
 

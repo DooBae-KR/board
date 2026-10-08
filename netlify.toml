@@ -1,0 +1,36 @@
+# Netlify 배포 설정: 하네스 대시보드와 보고 API (samgukji.netlify.app)
+# 헤더·캐시 규칙은 기존 smaGukji 저장소의 netlify.toml 설정을 가져왔다.
+#
+# 구조
+#   Netlify   정적 파일(dist/: 캐릭터 이미지) + Function(/harness, /api/harness/*)
+#   Supabase  harness_* 테이블 (CLAUDE.md 2장)
+# 인스타 웹훅·토큰 갱신처럼 디스크가 필요한 기능은 Netlify에서 돌지 않는다(Dockerfile/Render 서버 담당).
+#
+# 사이트 설정 → Environment variables (Functions·Builds 범위)
+#   SUPABASE_URL                https://<프로젝트ref>.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY   Secret으로 표시. 브라우저로는 나가지 않는다
+#   DASHBOARD_TOKEN             사람용: /harness?token=...
+#   HARNESS_API_TOKEN           에이전트용
+[build]
+  command = "node scripts/netlify-build.js"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[functions]
+  node_bundler = "esbuild"
+
+# 캐릭터 이미지는 파일 이름이 바뀌지 않으므로 하루만 캐시한다(서버의 /assets/char 응답과 같다).
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"

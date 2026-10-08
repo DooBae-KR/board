@@ -346,11 +346,16 @@ async function api(method, path, body) {
   if (!res.ok) throw new Error(out.error || `요청 실패 (${res.status})`);
   return out;
 }
+// 변화가 없으면 간격을 늘린다(5초 → 최대 60초). 서버리스 호출 수를 아끼기 위해서다.
+let pollMs = 5000, pollTimer = null;
+const schedule = () => { clearTimeout(pollTimer); pollTimer = setTimeout(async () => { await poll(); schedule(); }, pollMs); };
+const wake = () => { pollMs = 5000; schedule(); };
 async function poll() {
   if (document.hidden) return;
   try {
     const res = await fetch('/api/harness', { headers: { Authorization: 'Bearer ' + TOKEN, ...(state.etag ? { 'If-None-Match': state.etag } : {}) } });
-    if (res.status === 304) { setConn(true); return; }
+    if (res.status === 304) { pollMs = Math.min(60000, Math.round(pollMs * 1.5)); setConn(true); return; }
+    pollMs = 5000;
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(out.error || String(res.status));
     state.etag = res.headers.get('ETag'); state.data = out; state.loaded = true; setConn(true); render();
@@ -595,10 +600,11 @@ document.addEventListener('click', e => {
   const nav = e.target.closest('[data-nav]'); if (nav) go(nav.dataset.nav, nav.dataset.jump);
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { poll(); wake(); } });
+document.addEventListener('click', () => { pollMs = 5000; });
 
 state.active = decodeURIComponent(location.hash.slice(1)) || 'overview';
-render(); poll(); setInterval(poll, 5000);
+render(); poll(); schedule();
 </script>
 </body>
 </html>

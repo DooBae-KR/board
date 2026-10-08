@@ -93,3 +93,10 @@ curl -X PUT https://<서버>/api/harness/widgets -H "Authorization: Bearer $HARN
 ```
 
 Supabase 없이 화면만 보려면 `node scripts/dev-harness.js` → `http://127.0.0.1:3100/harness?token=dev`.
+
+### Netlify로 배포 (samgukji.netlify.app)
+
+1. Netlify → 사이트 → Site configuration → Build & deploy → Continuous deployment → **Link repository** → `DooBae-KR/board`, 브랜치 `main` (빌드 설정은 `netlify.toml`이 알려줌)
+2. Environment variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`(Secret), `DASHBOARD_TOKEN`, `HARNESS_API_TOKEN`
+3. 배포 후 `https://samgukji.netlify.app/harness?token=<DASHBOARD_TOKEN>`. 에이전트의 `HARNESS_API_URL`은 `https://samgukji.netlify.app`
+
