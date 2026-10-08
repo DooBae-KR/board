@@ -49,6 +49,14 @@
 | 응답 없음 | 작업 중인데 60분 넘게 기록 없음 | 고민하는 얼굴 (멈춘 작업 감지) |
 | 휴식 중 | 기록 없음 또는 완료 후 10분 경과 | 잠자는 모습 + Zzz |
 
+### 캐릭터 테마 (아이유 / 세훈이)
+
+로그인 화면과 대시보드 왼쪽 아래의 "아이유 · 세훈이" 버튼으로 캐릭터와 색 톤을 바꾼다. 선택은 브라우저(localStorage)에만 저장된다.
+
+- 아이유: 기본 라벤더 테마, 스프라이트는 `src/assets/char/*.png`
+- 세훈이: 블루 테마, 스프라이트는 `src/assets/char/sehun/*.png` (같은 포즈 이름 15개). 사용자가 준 캐릭터 시트에서 잘라 냈다.
+- 새 테마를 만들려면 `src/harness.html`의 `CHARS`, 테마 CSS(`:root[data-char="..."]`)와 로그인 화면(`src/harness-api.js`의 `loginPage`)에 같은 이름을 추가한다.
+
 ## repos.json 자동 동기화 (GitHub → 서버)
 - `REPOS_SYNC_REPO=owner/repo`를 설정하면 서버가 **5분마다**(`REPOS_SYNC_INTERVAL_MIN`) 해당 저장소의 `data/repos.json`(기본 `main` 브랜치)을 가져와 `REPOS_FILE`에 반영합니다.
 - 흐름: Claude Code 에이전트가 `repos.json` 수정 → PR 리뷰/머지 → 최대 5분 뒤 서버에 자동 반영 (재배포 불필요).

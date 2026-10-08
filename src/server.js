@@ -135,10 +135,10 @@ createServer(async (req, res) => {
   if (url.pathname === '/healthz') return res.writeHead(200).end('ok');
 
   // 캐릭터 스프라이트 (화이트리스트된 파일명만)
-  const asset = url.pathname.match(/^\/assets\/char\/([a-z]+)\.png$/);
+  const asset = url.pathname.match(/^\/assets\/char\/(?:(sehun)\/)?([a-z]+)\.png$/);
   if (asset) {
     try {
-      const png = readFileSync(new URL(`./assets/char/${asset[1]}.png`, import.meta.url));
+      const png = readFileSync(new URL(`./assets/char/${asset[1] ? asset[1] + '/' : ''}${asset[2]}.png`, import.meta.url));
       return res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' }).end(png);
     } catch {
       return res.writeHead(404).end();
