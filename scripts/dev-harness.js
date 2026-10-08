@@ -25,11 +25,11 @@ for (const a of agents) {
   store._db.agents.push({ id: a.id, name: a.name, role: a.role, pose: a.pose, color: a.color, model: a.model, example: a.example, section_id: sec?.id ?? null, task: '', steps: [], progress: 0, status: 'waiting', note: '', last_report_at: null, archived_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
 }
 
-const sprites = readdirSync(join(root, 'src/assets/char')).map((f) => f.slice(0, -4));
+const sprites = readdirSync(join(root, 'src/assets/char')).filter((f) => f.endsWith('.png')).map((f) => f.slice(0, -4));
 const api = createHarnessApi({ store, dashboardToken: 'dev', agentToken: 'dev-agent', sprites, pageUrl: new URL('../src/harness.html', import.meta.url) });
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
-  const m = url.pathname.match(/^\/assets\/char\/([a-z]+)\.png$/);
-  if (m) { try { const { readFileSync } = await import('node:fs'); return res.writeHead(200, { 'Content-Type': 'image/png' }).end(readFileSync(join(root, 'src/assets/char', m[1] + '.png'))); } catch { return res.writeHead(404).end(); } }
+  const m = url.pathname.match(/^\/assets\/char\/(?:(sehun)\/)?([a-z]+)\.png$/);
+  if (m) { try { const { readFileSync } = await import('node:fs'); return res.writeHead(200, { 'Content-Type': 'image/png' }).end(readFileSync(join(root, 'src/assets/char', (m[1] ? m[1] + '/' : '') + m[2] + '.png'))); } catch { return res.writeHead(404).end(); } }
   if (!(await api.handle(req, res, url))) res.writeHead(404).end();
 }).listen(3100, '127.0.0.1', () => console.log('http://127.0.0.1:3100/harness  (로그인 토큰: dev, 에이전트 토큰: dev-agent)'));

@@ -74,12 +74,20 @@ async function readForm(req) {
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const loginPage = (nonce, error, withUser = false) => `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>하네스 로그인</title>
-<style nonce="${nonce}">body{margin:0;min-height:100vh;display:grid;place-items:center;background:#F2F0FA;color:#2C2852;font:16px/1.5 system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
-form{background:#fff;border:1px solid #D9D3F1;border-radius:16px;padding:28px;width:min(360px,calc(100% - 32px));display:grid;gap:14px}
-h1{margin:0;font-size:22px}input{padding:10px 12px;border:1px solid #D9D3F1;border-radius:10px;font:inherit;width:100%;box-sizing:border-box}
-button{padding:10px;border:0;border-radius:10px;background:#6F62D2;color:#fff;font:inherit;cursor:pointer}.err{color:#D4506A;margin:0;font-size:14px}p{margin:0;color:#6E6896;font-size:14px}</style></head>
-<body><form method="post" action="/harness/login"><h1>하네스 대시보드</h1><p>${withUser ? '아이디와 비밀번호를 입력하세요.' : '대시보드 토큰을 입력하세요. 주소에는 남지 않아요.'}</p>
-${withUser ? '<input type="text" name="username" autocomplete="username" aria-label="아이디" placeholder="아이디" required autofocus>\n<input type="password" name="password" autocomplete="current-password" aria-label="비밀번호" placeholder="비밀번호" required>' : '<input type="password" name="token" autocomplete="current-password" aria-label="대시보드 토큰" required autofocus>'}${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}<button type="submit">들어가기</button></form></body></html>`;
+<script nonce="${nonce}">try{var c=localStorage.getItem('harness_char');if(c==='sehun')document.documentElement.dataset.char=c}catch(e){}</script>
+<style nonce="${nonce}">:root{--bg:#F2F0FA;--surface:#fff;--line:#D9D3F1;--ink:#2C2852;--muted:#6E6896;--accent:#6F62D2;--soft:#E8E4F8}
+:root[data-char="sehun"]{--bg:#EEF1FB;--line:#CAD3F0;--ink:#232A52;--muted:#636B9A;--accent:#4C5FD5;--soft:#E0E6F9}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+form{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px;width:min(360px,calc(100% - 32px));display:grid;gap:14px}
+.who{display:grid;justify-items:center;gap:8px}.who img{width:96px;height:96px;object-fit:contain;image-rendering:pixelated}
+.tabs{display:flex;gap:6px}.tabs button{border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:4px 14px;font:inherit;font-size:13px;cursor:pointer;color:inherit}.tabs button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+h1{margin:0;font-size:22px;text-align:center}input{padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;width:100%;box-sizing:border-box}
+.go{padding:10px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;cursor:pointer}.err{color:#D4506A;margin:0;font-size:14px}p{margin:0;color:var(--muted);font-size:14px;text-align:center}</style></head>
+<body><form method="post" action="/harness/login"><div class="who"><img id="ci" src="/assets/char/wave.png" alt=""><div class="tabs" role="group" aria-label="캐릭터 테마"><button type="button" data-char="iu" aria-pressed="true">아이유</button><button type="button" data-char="sehun" aria-pressed="false">세훈이</button></div></div>
+<h1>하네스 대시보드</h1><p>${withUser ? '아이디와 비밀번호를 입력하세요.' : '대시보드 토큰을 입력하세요. 주소에는 남지 않아요.'}</p>
+${withUser ? '<input type="text" name="username" autocomplete="username" aria-label="아이디" placeholder="아이디" required autofocus>\n<input type="password" name="password" autocomplete="current-password" aria-label="비밀번호" placeholder="비밀번호" required>' : '<input type="password" name="token" autocomplete="current-password" aria-label="대시보드 토큰" required autofocus>'}${error ? `<p class="err" role="alert">${esc(error)}</p>` : ''}<button class="go" type="submit">들어가기</button></form>
+<script nonce="${nonce}">(function(){var d=document.documentElement;function set(c,save){if(c!=='sehun')c='iu';if(c==='sehun')d.dataset.char=c;else delete d.dataset.char;document.getElementById('ci').src='/assets/char/'+(c==='sehun'?'sehun/':'')+'wave.png';document.querySelectorAll('.tabs [data-char]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.char===c))});if(save){try{localStorage.setItem('harness_char',c)}catch(e){}}}
+document.querySelector('.tabs').addEventListener('click',function(e){var b=e.target.closest('[data-char]');if(b)set(b.dataset.char,true)});set(d.dataset.char,false)})();</script></body></html>`;
 
 /** 응답에 쓰는 동시에 열린 요청 본문은 버린다 */
 function send(res, code, body, headers = {}) {
