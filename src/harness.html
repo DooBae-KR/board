@@ -288,6 +288,42 @@ pre.code{background:var(--bg);border-radius:10px;padding:12px;font-size:12px;ove
 .ev time{font-family:var(--f-pixel);font-size:10px;color:var(--muted);flex:none;min-width:54px}
 .ev b{font-weight:400;font-family:var(--f-display)}
 .ex{font-family:var(--f-pixel);font-size:9px;border:1px dashed var(--line);border-radius:5px;padding:0 5px;color:var(--muted);margin-left:4px}
+
+/* 작업 지시 대화창 */
+.chat{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;align-items:start}
+.chatside{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:8px;display:flex;flex-direction:column;gap:2px;max-height:calc(100vh - 190px);overflow:auto;position:sticky;top:16px}
+.chatside h4{margin:8px 8px 4px;font-family:var(--f-pixel);font-size:10px;letter-spacing:.12em;color:var(--muted);font-weight:400;text-transform:uppercase}
+.chatpick{display:flex;align-items:center;gap:10px;border:0;background:none;border-radius:10px;padding:6px 8px;text-align:left;color:var(--ink);width:100%}
+.chatpick:hover{background:var(--soft)}
+.chatpick[aria-current="true"]{background:var(--accent);color:var(--accent-ink)}
+.chatpick img{width:32px;height:32px;border-radius:9px;object-fit:cover;object-position:top;background:var(--soft);flex:none}
+.chatpick span{min-width:0;flex:1}.chatpick b{font-weight:400;font-family:var(--f-display);display:block;line-height:1.2}
+.chatpick small{display:block;font-size:12px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chatpick .q{font-family:var(--f-pixel);font-size:10px;background:var(--pink);color:#fff;border-radius:6px;padding:1px 6px;flex:none}
+.chatmain{background:var(--surface);border:1px solid var(--line);border-radius:16px;display:flex;flex-direction:column;min-height:520px;min-width:0}
+.chathead{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.chathead img{width:44px;height:44px;border-radius:12px;object-fit:cover;object-position:top;background:var(--soft)}
+.chathead b{font-family:var(--f-display);font-weight:400;font-size:18px;display:block;line-height:1.2}
+.chathead small{color:var(--muted)}
+.thread{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:10px;max-height:calc(100vh - 380px);min-height:260px}
+.bub{max-width:min(620px,88%);padding:9px 13px;border-radius:14px;font-size:14.5px;line-height:1.5;overflow-wrap:anywhere}
+.bub.me{align-self:flex-end;background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:4px;white-space:pre-wrap}
+.bub.ag{align-self:flex-start;background:var(--bg);border-bottom-left-radius:4px}
+.bub .meta{display:flex;align-items:center;gap:8px;margin-top:5px;font-size:11px;opacity:.85;flex-wrap:wrap}
+.bub .meta time{font-family:var(--f-pixel);font-size:9px}
+.bub .tag{border-radius:5px;padding:0 6px;font-size:11px;background:rgba(255,255,255,.22)}
+.bub.ag .tag{background:var(--soft);color:var(--muted)}
+.bub.ag .tag.fail,.bub.ag .tag.blocked{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.bub.ag .tag.done{background:color-mix(in srgb,var(--good) 16%,transparent);color:var(--good)}
+.bub .cancel{border:0;background:none;color:inherit;text-decoration:underline;padding:0;font-size:11px}
+.sysnote{align-self:center;font-size:12px;color:var(--muted);background:var(--soft);border-radius:999px;padding:2px 12px}
+.composer{border-top:1px solid var(--line);padding:12px 16px;display:grid;gap:8px}
+.composer textarea{width:100%;min-height:84px;max-height:240px;resize:vertical;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:10px 12px;font:inherit;line-height:1.5}
+.composer .row2{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.composer .hint{flex:1;min-width:180px;font-size:12px;color:var(--muted)}
+.composer .cnt2{font-family:var(--f-pixel);font-size:10px;color:var(--muted)}
+.composer .primary[disabled]{opacity:.5;cursor:default}
+@media (max-width:820px){.chat{grid-template-columns:minmax(0,1fr)}.chatside{position:static;max-height:none;flex-direction:row;overflow-x:auto;overflow-y:hidden}.chatside h4{display:none}.chatpick{width:auto;flex:none}.chatpick small{display:none}.thread{max-height:none}}
 </style>
 </head>
 <body>
@@ -326,7 +362,7 @@ const hex = c => (/^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : null);
 const agentColor = a => hex(a.color) || FALLBACK_COLORS[[...a.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997, 0) % FALLBACK_COLORS.length];
 const ago = iso => { if (!iso) return ''; const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000); if (s < 60) return '방금'; if (s < 3600) return Math.floor(s / 60) + '분 전'; if (s < 86400) return Math.floor(s / 3600) + '시간 전'; return Math.floor(s / 86400) + '일 전'; };
 
-const state = { data: { sections: [], widgets: [], agents: [], events: [] }, loaded: false, active: 'overview', collapsed: {}, filter: 'all', etag: null };
+const state = { data: { sections: [], widgets: [], agents: [], events: [], tasks: [] }, chatAgent: null, drafts: {}, loaded: false, active: 'overview', collapsed: {}, filter: 'all', etag: null };
 const sec = id => state.data.sections.find(s => s.id === id);
 const kids = pid => state.data.sections.filter(s => (s.parent_id || null) === pid || (pid === null && s.parent_id && !sec(s.parent_id)));
 const agentsIn = sid => state.data.agents.filter(a => a.section_id === sid);
@@ -427,7 +463,7 @@ function agentCard(a) {
     <div class="task">${a.task ? esc(a.task) : '<span style="color:var(--muted)">맡은 업무 없음</span>'}${a.stale ? '<span class="stale">응답 없음</span>' : ''}${a.note ? `<small>${esc(a.note)}</small>` : ''}</div>
     ${a.task ? `<div class="prog" style="--pcol:${barCol}"><div class="track" role="progressbar" aria-valuenow="${p}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(a.task)} 진행률"><div class="fill" style="width:${p}%"></div></div><em>${p}%</em></div>` : ''}
     ${cs.n ? `<ul class="steps">${a.steps.map((x, i) => `<li class="${x.done ? 'd' : i === cs.i ? 'c' : ''}">${esc(x.t)}</li>`).join('')}</ul>` : ''}
-    <div class="foot"><span>${cs.n ? `${cs.done}/${cs.n} 단계 · ` : ''}${esc(ago(a.last_report_at) || '보고 없음')}</span><button class="wbtn" type="button" data-act="move-agent" data-aid="${esc(a.id)}">이동</button></div>
+    <div class="foot"><span>${cs.n ? `${cs.done}/${cs.n} 단계 · ` : ''}${esc(ago(a.last_report_at) || '보고 없음')}</span><button class="wbtn" type="button" data-act="ask-agent" data-aid="${esc(a.id)}">지시</button><button class="wbtn" type="button" data-act="move-agent" data-aid="${esc(a.id)}">이동</button></div>
   </article>`;
 }
 function crewSummary(ags) {
@@ -498,6 +534,63 @@ function treeHTML() {
     <ul>${kids(null).map(orgNode).join('')}${lob.length ? `<li><button type="button" class="onode" data-nav="agents"><span class="sw" style="background:var(--line)"></span><img src="${sprite('sleep')}" alt=""><span><b>대기실</b><small>배치 전 에이전트 ${lob.length}명</small></span></button><ul>${lob.map(a => `<li class="wl"><button type="button" class="aleaf" data-nav="agents" data-jump="${esc(a.id)}"><img src="${sprite(a.pose)}" alt=""><span>${esc(a.name)} <span class="model" style="background:${agentColor(a)}">${esc(a.role || 'AGENT')}</span></span></button></li>`).join('')}</ul></li>` : ''}</ul></li></ul></div>`;
 }
 
+
+/* ---------- 작업 지시 대화창 ---------- */
+const TASK_STATUS = { queued: '대기 중', claimed: '진행 중', done: '완료', failed: '실패', cancelled: '취소됨' };
+const EV_LABEL = { start: '시작', step: '단계', progress: '진행', blocked: '확인 필요', done: '완료', fail: '실패', info: '메모' };
+const queuedOf = id => (state.data.tasks || []).filter(t => t.agent_id === id && t.status === 'queued').length;
+const clock = iso => new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+function chatAgent() { const a = state.data.agents; return a.find(x => x.id === state.chatAgent) || a[0] || null; }
+function tasksHTML() {
+  const d = state.data, cur = chatAgent();
+  if (!cur) return '<div class="head"><div><div class="eyebrow">Tasks</div><h1>작업 지시</h1></div></div><p class="empty">에이전트가 아직 없어요. agents/&lt;id&gt;.md를 만들면 여기서 지시할 수 있어요.</p>';
+  state.chatAgent = cur.id;
+  const order = []; const walk = s => { order.push(s); kids(s.id).forEach(walk); }; kids(null).forEach(walk);
+  const pick = a => `<button type="button" class="chatpick" data-act="chat-pick" data-aid="${esc(a.id)}" aria-current="${a.id === cur.id}"><img src="${sprite(a.pose)}" alt=""><span><b>${esc(a.name)}</b><small>${esc(a.task || a.role)}</small></span>${queuedOf(a.id) ? `<em class="q">${queuedOf(a.id)}</em>` : ''}</button>`;
+  const groups = order.map(s => ({ s, ags: agentsIn(s.id) })).filter(g => g.ags.length);
+  const lob = lobby();
+  const side = groups.map(g => `<h4>${esc(secPath(g.s))}</h4>${g.ags.map(pick).join('')}`).join('') + (lob.length ? `<h4>대기실</h4>${lob.map(pick).join('')}` : '');
+
+  const items = [
+    ...(d.tasks || []).filter(t => t.agent_id === cur.id).map(t => ({ k: 'task', at: t.created_at, t })),
+    ...d.events.filter(e => e.agent_id === cur.id).map(e => ({ k: 'ev', at: e.created_at, e })),
+  ].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const bubble = it => {
+    if (it.k === 'task') {
+      const t = it.t, open = t.status === 'queued' || t.status === 'claimed';
+      return `<div class="bub me"><div>${esc(t.body)}</div><div class="meta"><span class="tag">${TASK_STATUS[t.status] || esc(t.status)}</span><time>${esc(clock(t.created_at))}</time>${open ? `<button type="button" class="cancel" data-act="cancel-task" data-tid="${esc(t.id)}">취소</button>` : ''}</div></div>`;
+    }
+    const e = it.e;
+    if (e.kind === 'assign') return `<div class="sysnote">${esc(e.message || '부서 이동')} · ${esc(clock(e.created_at))}</div>`;
+    return `<div class="bub ag"><div>${esc(e.message || EV_LABEL[e.kind] || e.kind)}${e.output ? ` <small style="color:var(--muted)">→ ${esc(e.output)}</small>` : ''}</div><div class="meta"><span class="tag ${/^[a-z]+$/.test(e.kind) ? e.kind : ''}">${EV_LABEL[e.kind] || esc(e.kind)}</span><time>${esc(clock(e.created_at))}</time></div></div>`;
+  };
+  const sec_ = cur.section_id && sec(cur.section_id), draft = state.drafts[cur.id] || '';
+  return `<div class="head"><div><div class="eyebrow">Tasks</div><h1>작업 지시</h1></div></div>
+  <div class="chat"><aside class="chatside" aria-label="에이전트 선택">${side}</aside>
+  <section class="chatmain" aria-label="${esc(cur.name)}와의 대화">
+    <header class="chathead"><img src="${sprite(cur.pose)}" alt=""><div><b>${esc(cur.name)}</b><small>${esc(cur.role)} · ${esc(secPath(sec_))} · ${esc(AGENT_STATUS[cur.status] || cur.status)}</small></div></header>
+    <div class="thread" id="thread" tabindex="0" aria-live="polite">${items.length ? items.map(bubble).join('') : `<p class="sysnote" style="align-self:center">아직 대화가 없어요. 아래에 ${esc(cur.name)}에게 시킬 작업을 적어 보세요.</p>`}</div>
+    <div class="composer"><textarea id="chat-input" maxlength="2000" placeholder="${esc(cur.name)}에게 시킬 작업을 적어 주세요. 예: 10월 지출 내역에서 이상치를 찾아 정리해 줘" aria-label="작업 내용">${esc(draft)}</textarea>
+      <p class="err" id="chat-err" hidden></p>
+      <div class="row2"><span class="hint">Ctrl+Enter(맥은 ⌘+Enter)로 보내요. ${esc(cur.name)}가 <code>harness-report.js ${esc(cur.id)} next</code>로 가져가면 '진행 중'으로 바뀌고, 업무를 끝내면 '완료'가 돼요. 비밀번호·토큰은 적지 마세요.</span><span class="cnt2" id="chat-cnt">${draft.length}/2000</span><button class="primary" type="button" id="chat-send" data-act="send-task">보내기</button></div></div>
+  </section></div>`;
+}
+async function sendTask() {
+  const ta = $('chat-input'), btn = $('chat-send'), err = $('chat-err'), agent = state.chatAgent;
+  const body = ta.value.trim(); if (!body || btn.disabled) return;
+  btn.disabled = true; err.hidden = true;
+  try {
+    await api('POST', '/api/harness/tasks', { agent, body });
+    state.drafts[agent] = ''; state.etag = null; await poll();
+    const t = $('thread'); if (t) t.scrollTop = t.scrollHeight;
+    $('chat-input')?.focus();
+  } catch (e) { err.textContent = e.message; err.hidden = false; btn.disabled = false; }
+}
+async function cancelTask(id) {
+  try { await api('PATCH', '/api/harness/tasks/' + id, { status: 'cancelled' }); state.etag = null; await poll(); toast('작업을 취소했어요'); }
+  catch (e) { toast(e.message); }
+}
+
 /* ---------- menu & render ---------- */
 function menuNode(s) {
   const ch = kids(s.id), ags = agentsIn(s.id), ws = widgetsOf(s.id), has = ch.length || ags.length || ws.length, open = !state.collapsed[s.id];
@@ -506,17 +599,27 @@ function menuNode(s) {
     ${open && has ? `<ul>${ch.map(menuNode).join('')}${ags.map(a => `<li><button type="button" class="leaf" data-nav="${esc(s.id)}" data-jump="${esc(a.id)}" title="${esc(a.task)}"><img src="${sprite(a.pose)}" alt=""><span class="ln">${esc(a.name)} · ${esc(a.task || a.role)}</span><span class="pct" style="color:${STATUS_RING[a.status] === 'var(--line)' ? 'var(--muted)' : STATUS_RING[a.status]}">${a.status === 'done' ? 'DONE' : pct(a) + '%'}</span></button></li>`).join('')}${ws.map(w => `<li><button type="button" class="leaf" data-nav="${esc(s.id)}" data-jump="${esc(w.id)}"><span class="wt">${TYPE_TAG[w.type] || ''}</span><span>${esc(w.title)}</span></button></li>`).join('')}</ul>` : ''}</li>`;
 }
 function renderMenu() {
-  const top = [['overview', '전체 현황', 'var(--ink)', state.data.sections.length], ['tree', '조직 구조', 'var(--lilac)', kids(null).length], ['agents', '에이전트', 'var(--pink)', state.data.agents.length]];
+  const top = [['overview', '전체 현황', 'var(--ink)', state.data.sections.length], ['tree', '조직 구조', 'var(--lilac)', kids(null).length], ['tasks', '작업 지시', 'var(--mint)', (state.data.tasks || []).filter(t => t.status === 'queued').length], ['agents', '에이전트', 'var(--pink)', state.data.agents.length]];
   $('menu').innerHTML = top.map(([id, n, c, k]) => `<li><div class="row"><span class="caret none"></span><button type="button" class="mi" data-nav="${id}" ${state.active === id ? 'aria-current="page"' : ''}><span class="dot" style="background:${c}"></span><span class="nm">${n}</span><span class="cnt">${k}</span></button></div></li>`).join('') + kids(null).map(menuNode).join('');
 }
 function render() {
   const m = $('main'), keepY = window.scrollY;
   if (!state.loaded) { m.innerHTML = '<p class="empty">불러오는 중…</p>'; return; }
   renderMenu();
-  if (state.active === 'tree') m.innerHTML = treeHTML();
+  // 대화창을 다시 그려도 쓰던 글·커서·스크롤이 유지되게 한다
+  const ta0 = $('chat-input'), th0 = $('thread');
+  const keep = ta0 ? { focus: document.activeElement === ta0, sel: [ta0.selectionStart, ta0.selectionEnd] } : null;
+  const atBottom = !th0 || th0.scrollHeight - th0.scrollTop - th0.clientHeight < 40;
+  const prevTop = th0 ? th0.scrollTop : 0;
+  if (state.active === 'tasks') m.innerHTML = tasksHTML();
+  else if (state.active === 'tree') m.innerHTML = treeHTML();
   else if (state.active === 'agents') m.innerHTML = rosterHTML();
-  else if (state.active === 'overview' || !sec(state.active)) { state.active = 'overview'; m.innerHTML = overviewHTML(); }
+  else if (state.active === 'overview' || (state.active !== 'tasks' && !sec(state.active))) { state.active = 'overview'; m.innerHTML = overviewHTML(); }
   else m.innerHTML = sectionHTML(sec(state.active));
+  if (state.active === 'tasks') {
+    const th = $('thread'); if (th) th.scrollTop = (!th0 || atBottom) ? th.scrollHeight : prevTop;
+    const ta = $('chat-input'); if (ta && keep?.focus) { ta.focus(); ta.setSelectionRange(...keep.sel); }
+  }
   window.scrollTo(0, keepY);
 }
 function go(id, jump) {
@@ -594,6 +697,10 @@ document.addEventListener('click', e => {
     const a = act.dataset.act;
     if (a === 'add-section') return addSectionModal(null);
     if (a === 'add-child') return addSectionModal(act.dataset.sid);
+    if (a === 'send-task') return sendTask();
+    if (a === 'cancel-task') return cancelTask(act.dataset.tid);
+    if (a === 'chat-pick') { state.chatAgent = act.dataset.aid; return render(); }
+    if (a === 'ask-agent') { state.chatAgent = act.dataset.aid; return go('tasks'); }
     if (a === 'flt') { state.filter = act.dataset.v; return render(); }
     if (a === 'move-agent') { const ag = state.data.agents.find(x => x.id === act.dataset.aid); return ag && moveModal(ag); }
     if (a === 'del-section') { const s = sec(act.dataset.sid); return s && delSectionModal(s); }
@@ -601,7 +708,15 @@ document.addEventListener('click', e => {
   const nav = e.target.closest('[data-nav]'); if (nav) go(nav.dataset.nav, nav.dataset.jump);
 });
 $('logout').addEventListener('click', async () => { try { await fetch('/harness/logout', { method: 'POST' }); } finally { location.reload(); } });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.id === 'chat-input') { e.preventDefault(); sendTask(); }
+});
+document.addEventListener('input', e => {
+  if (e.target.id !== 'chat-input') return;
+  state.drafts[state.chatAgent] = e.target.value;
+  $('chat-cnt').textContent = e.target.value.length + '/2000';
+});
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { poll(); wake(); } });
 document.addEventListener('click', () => { pollMs = 5000; });
 
