@@ -18,4 +18,4 @@ export default async (request) => {
   return handleRequest(api, request);
 };
 
-export const config = { path: ['/harness', '/api/harness', '/api/harness/*'] };
+export const config = { path: ['/harness', '/harness/login', '/harness/logout', '/api/harness', '/api/harness/*'] };
