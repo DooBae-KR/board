@@ -91,7 +91,7 @@ node scripts/harness-report.js <id> assign  "부서 이름" ["새 업무"]
 
 ### Netlify 배포 (samgukji.netlify.app)
 
-`netlify.toml`이 같은 API를 Netlify Function(`netlify/functions/harness.mjs`)으로 낸다. 빌드는 `scripts/netlify-build.js`(페이지·스프라이트 생성, 운영 배포에서만 `agents/*.md` 동기화). 환경변수는 Netlify 사이트 설정에 위 네 개를 넣고 `SUPABASE_SERVICE_ROLE_KEY`는 Secret으로 표시한다. Netlify에는 디스크·상시 프로세스가 없으므로 인스타 웹훅과 토큰 갱신은 이 배포에 포함되지 않는다(Docker/Render 서버 담당). 이 사이트는 예전에 DooBae-KR/smagukji에 연결돼 있었고, 그 저장소의 Netlify 연결을 끊은 뒤 이 저장소(`main`)에 연결한다. smagukji의 DB 테이블은 같은 Supabase 프로젝트에 있지만 2장 1항에 따라 건드리지 않는다.
+`netlify.toml`이 같은 API를 Netlify Function(`netlify/functions/harness.mjs`)으로 낸다. 빌드는 `scripts/netlify-build.js`(페이지·스프라이트 생성, 운영 배포에서만 `agents/*.md` 동기화). 환경변수는 Netlify 사이트 설정에 위 네 개와 봇용 `VERIFY_TOKEN`, `APP_SECRET`, `IG_KO_*`(영어 계정은 `IG_EN_*`)를 넣고 `SUPABASE_SERVICE_ROLE_KEY`는 Secret으로 표시한다. Netlify에는 디스크·상시 프로세스가 없으므로 인스타 DM 봇도 서버리스로 옮겼다: `/webhook`은 `netlify/functions/webhook.mjs`, 토큰 갱신은 12시간마다 도는 `refresh-tokens.mjs`(예약 함수)다. 토큰·웹훅 중복 방지·집계는 Supabase `igbot_tokens`/`igbot_seen`/`igbot_events`(service_role 전용, RLS 켬, 하네스의 `harness_` 접두사와는 별개)에 둔다. `data/repos.json`은 빌드 때 검증해 함수에 넣으므로 영상 등록은 커밋 → 재배포로 반영된다. 옛 `/dashboard`·`/api/stats`(메모리 집계)는 Netlify에 없다. 이 사이트는 예전에 DooBae-KR/smagukji에 연결돼 있었고, 그 저장소의 Netlify 연결을 끊은 뒤 이 저장소(`main`)에 연결한다. smagukji의 DB 테이블은 같은 Supabase 프로젝트에 있지만 2장 1항에 따라 건드리지 않는다.
 
 ## 7. 기존 기능과의 관계
 

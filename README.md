@@ -97,6 +97,6 @@ Supabase 없이 화면만 보려면 `node scripts/dev-harness.js` → `http://12
 ### Netlify로 배포 (samgukji.netlify.app)
 
 1. Netlify → 사이트 → Site configuration → Build & deploy → Continuous deployment → **Link repository** → `DooBae-KR/board`, 브랜치 `main` (빌드 설정은 `netlify.toml`이 알려줌)
-2. Environment variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`(Secret), `DASHBOARD_TOKEN`, `HARNESS_API_TOKEN`
+2. Environment variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`(Secret), `DASHBOARD_TOKEN`, `HARNESS_API_TOKEN`, 그리고 인스타 봇용 `VERIFY_TOKEN`, `APP_SECRET`, `IG_KO_USER_ID`, `IG_KO_ACCESS_TOKEN`(영어 계정은 `IG_EN_*`)
 3. 배포 후 `https://samgukji.netlify.app/harness?token=<DASHBOARD_TOKEN>`. 에이전트의 `HARNESS_API_URL`은 `https://samgukji.netlify.app`
-
+4. 메타 앱의 웹훅 콜백 URL을 `https://samgukji.netlify.app/webhook`으로 바꾸고, 확인 토큰은 `VERIFY_TOKEN`과 같은 값으로 넣기

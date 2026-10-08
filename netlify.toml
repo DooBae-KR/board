@@ -4,13 +4,17 @@
 # 구조
 #   Netlify   정적 파일(dist/: 캐릭터 이미지) + Function(/harness, /api/harness/*)
 #   Supabase  harness_* 테이블 (CLAUDE.md 2장)
-# 인스타 웹훅·토큰 갱신처럼 디스크가 필요한 기능은 Netlify에서 돌지 않는다(Dockerfile/Render 서버 담당).
+#   인스타 DM 봇  /webhook(Function) + 토큰 갱신(12시간마다 예약 함수). 토큰·중복 방지·집계는 Supabase igbot_* 테이블
+#   영상 목록      data/repos.json을 빌드 때 검증해서 함수에 넣는다(저장소에서 고치면 재배포로 반영)
+# 기존 상시 서버(Dockerfile/Render)는 더 이상 필요 없다.
 #
 # 사이트 설정 → Environment variables (Functions·Builds 범위)
 #   SUPABASE_URL                https://<프로젝트ref>.supabase.co
 #   SUPABASE_SERVICE_ROLE_KEY   Secret으로 표시. 브라우저로는 나가지 않는다
 #   DASHBOARD_TOKEN             사람용: /harness?token=...
 #   HARNESS_API_TOKEN           에이전트용
+#   VERIFY_TOKEN, APP_SECRET    메타 웹훅 확인 토큰·앱 시크릿 (APP_SECRET이 없으면 웹훅은 거부된다)
+#   IG_KO_USER_ID, IG_KO_ACCESS_TOKEN (영어 계정이면 IG_EN_*)   접근 토큰은 Secret으로 표시
 [build]
   command = "node scripts/netlify-build.js"
   publish = "dist"

@@ -2,13 +2,14 @@ import { findById, matchRepo } from './repos.js';
 import { messages } from './i18n.js';
 import { record } from './stats.js';
 
-const seen = new Set(); // 웹훅 중복 전송 방지 (단일 프로세스 기준)
-const once = (key) => (seen.has(key) ? false : (seen.add(key), true));
+const seen = new Set(); // 웹훅 중복 전송 방지 (기본: 단일 프로세스 메모리)
+const memoryOnce = (key) => (seen.has(key) ? false : (seen.add(key), true));
 
 // accounts: { [igUserId]: { lang, api } } — api는 { isFollowing, sendMessage }
-export function createHandlers({ accounts, loadRepos }) {
+// once(key): 처음 보는 키면 true. 서버리스에서는 DB 기반(비동기)으로 바꿔 끼운다
+export function createHandlers({ accounts, loadRepos, once = memoryOnce }) {
   async function onComment(acc, selfId, { id, text, from, media }) {
-    if (!once(`c:${id}`) || from?.id === selfId) return;
+    if (from?.id === selfId || !(await once(`c:${id}`))) return;
     const repo = matchRepo(loadRepos(), media?.id, text);
     if (!repo) return;
     const t = messages[acc.lang];
