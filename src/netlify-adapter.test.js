@@ -44,3 +44,10 @@ test('304와 302는 본문 없이, 403은 JSON으로', async () => {
 test('처리하지 않는 경로는 404', async () => {
   assert.equal((await handleRequest(api(), req('/other'))).status, 404);
 });
+
+test('Netlify 함수 경로에 로그인·로그아웃이 들어 있다 (빠지면 POST /harness/login이 404)', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const src = await readFile(new URL('../netlify/functions/harness.mjs', import.meta.url), 'utf8');
+  const paths = JSON.parse(/path:\s*(\[[^\]]*\])/.exec(src)[1].replaceAll("'", '"'));
+  for (const p of ['/harness', '/harness/login', '/harness/logout', '/api/harness', '/api/harness/*']) assert.ok(paths.includes(p), p);
+});
