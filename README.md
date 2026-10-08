@@ -68,3 +68,28 @@
 - **상태·데이터**: Supabase `harness_*` 테이블 (`supabase/migrations/`), 진행 보고는 `npm run harness:report -- <id> <start|step|done|…>`
 - **실행**: Agent Substrate Actor (에이전트 1명 = Actor 1개, `substrate/`)
 - **모션**: HyperFrames 컴포지션 (`motion/`) → `npm run motions:render -- <id> --upload`
+
+## 하네스 서버 사용 (`/harness`)
+
+서버(Render/Docker)에 아래 환경변수를 넣으면 대시보드와 에이전트 보고 API가 같이 켜집니다. 규칙은 `CLAUDE.md` 6-1.
+
+```
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=...   # 서버 전용
+DASHBOARD_TOKEN=...             # 사람용: https://<서버>/harness?token=...
+HARNESS_API_TOKEN=...           # 에이전트용
+```
+
+```bash
+# 에이전트가 진행 보고 (Actor에는 HARNESS_API_URL, HARNESS_API_TOKEN만 둔다)
+curl -X POST https://<서버>/api/harness/report -H "Authorization: Bearer $HARNESS_API_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"agent":"lumi","kind":"start","message":"10월 지출 분석","steps":["수집","분석","보고서"]}'
+# 새 카테고리(섹션) 추가 → 메뉴에 바로 생김
+curl -X POST https://<서버>/api/harness/sections -H "Authorization: Bearer $HARNESS_API_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name":"법무팀","parent":"경영지원본부","pose":"book","color":"sky"}'
+# 위젯 데이터 보내기
+curl -X PUT https://<서버>/api/harness/widgets -H "Authorization: Bearer $HARNESS_API_TOKEN" \
+  -H 'Content-Type: application/json' -d '{"section":"법무팀","title":"계약 현황","type":"kpi","data":{"items":[{"label":"검토 중","value":4,"unit":"건"}]}}'
+```
+
+Supabase 없이 화면만 보려면 `node scripts/dev-harness.js` → `http://127.0.0.1:3100/harness?token=dev`.

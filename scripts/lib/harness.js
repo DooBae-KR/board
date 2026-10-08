@@ -7,7 +7,11 @@ import { parseFrontmatter } from './frontmatter.js';
 
 export const MOTION_STATES = ['idle', 'working', 'walk', 'done', 'blocked'];
 export const REPORT_KINDS = ['start', 'step', 'progress', 'blocked', 'done', 'fail', 'assign', 'info'];
-const ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
+/** 입력·상태 문제로 보고를 처리할 수 없을 때. status는 HTTP 응답에도 그대로 쓴다 */
+export class HarnessError extends Error {
+  constructor(message, status = 400) { super(message); this.name = 'HarnessError'; this.status = status; }
+}
+export const ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const LOBBY = new Set(['', '대기실', 'lobby', '-']);
 
 const list = (v) => (Array.isArray(v) ? v : v === '' || v == null ? [] : [v]).map(String);
@@ -74,16 +78,16 @@ const pct = (steps) => (steps.length ? Math.round((steps.filter((s) => s.done).l
  * @param args   { message, steps, value, output, section }  section은 assign 때 { id, name } 또는 null(대기실)
  */
 export function applyReport(agent, kind, args = {}) {
-  if (!REPORT_KINDS.includes(kind)) throw new Error(`알 수 없는 보고 종류: ${kind} (허용: ${REPORT_KINDS.join(', ')})`);
+  if (!REPORT_KINDS.includes(kind)) throw new HarnessError(`알 수 없는 보고 종류: ${kind} (허용: ${REPORT_KINDS.join(', ')})`);
   const message = String(args.message ?? '').trim();
-  if (looksSecret(message) || looksSecret(args.output)) throw new Error('메시지에 토큰·키로 보이는 값이 있어 기록하지 않았습니다 (CLAUDE.md 6장)');
+  if (looksSecret(message) || looksSecret(args.output)) throw new HarnessError('메시지에 토큰·키로 보이는 값이 있어 기록하지 않았습니다 (CLAUDE.md 6장)');
   const steps = (agent.steps || []).map((s) => ({ t: s.t, done: !!s.done }));
   const patch = { last_report_at: args.now || new Date().toISOString() };
   const event = { agent_id: agent.id, kind, message };
 
   switch (kind) {
     case 'start': {
-      if (!message) throw new Error('start에는 업무 이름이 필요합니다');
+      if (!message) throw new HarnessError('start에는 업무 이름이 필요합니다');
       const st = (args.steps || []).map((t) => ({ t, done: false }));
       Object.assign(patch, { task: message, steps: st, progress: 0, status: 'working', note: '' });
       if (st.length) event.data = { steps: st.map((s) => s.t) };
@@ -91,7 +95,7 @@ export function applyReport(agent, kind, args = {}) {
     }
     case 'step': {
       const i = steps.findIndex((s) => !s.done);
-      if (i < 0) throw new Error(steps.length ? '이미 모든 단계를 끝냈습니다. done으로 마무리하세요' : '단계가 없습니다. start --steps로 단계를 정하거나 progress를 쓰세요');
+      if (i < 0) throw new HarnessError(steps.length ? '이미 모든 단계를 끝냈습니다. done으로 마무리하세요' : '단계가 없습니다. start --steps로 단계를 정하거나 progress를 쓰세요');
       steps[i].done = true;
       Object.assign(patch, { steps, progress: pct(steps), status: 'working' });
       event.data = { step: steps[i].t, index: i + 1, total: steps.length };
@@ -99,15 +103,15 @@ export function applyReport(agent, kind, args = {}) {
       break;
     }
     case 'progress': {
-      if (steps.length) throw new Error('단계가 있는 업무는 step으로 보고합니다 (진행률은 자동 계산, CLAUDE.md 2-6)');
+      if (steps.length) throw new HarnessError('단계가 있는 업무는 step으로 보고합니다 (진행률은 자동 계산, CLAUDE.md 2-6)');
       const v = Number(args.value);
-      if (!Number.isFinite(v) || v < 0 || v > 100) throw new Error('progress 값은 0~100 사이 숫자여야 합니다');
+      if (!Number.isFinite(v) || v < 0 || v > 100) throw new HarnessError('progress 값은 0~100 사이 숫자여야 합니다');
       Object.assign(patch, { progress: Math.round(v), status: 'working' });
       event.data = { progress: Math.round(v) };
       break;
     }
     case 'blocked':
-      if (!message) throw new Error('blocked에는 사람이 확인할 이유가 필요합니다');
+      if (!message) throw new HarnessError('blocked에는 사람이 확인할 이유가 필요합니다');
       Object.assign(patch, { status: 'blocked', note: message });
       break;
     case 'done':
@@ -115,7 +119,7 @@ export function applyReport(agent, kind, args = {}) {
       if (args.output) event.output = String(args.output);
       break;
     case 'fail':
-      if (!message) throw new Error('fail에는 원인이 필요합니다');
+      if (!message) throw new HarnessError('fail에는 원인이 필요합니다');
       Object.assign(patch, { status: 'failed', note: message });
       break;
     case 'assign': {

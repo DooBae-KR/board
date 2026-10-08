@@ -19,9 +19,9 @@
 
 1. 하네스 테이블은 `public.harness_` 접두사를 쓴다. 같은 프로젝트의 기존 테이블(`agent_team`, `agent_staff`, `agent_job` 등 다른 앱 소유)을 읽거나 쓰지 않는다.
 2. 스키마 변경은 `supabase/migrations/`에 새 파일로만 추가한다. 이미 적용된 마이그레이션 파일은 고치지 않는다.
-3. 모든 `harness_` 테이블은 RLS를 켠다. 대시보드(anon/authenticated)는 읽기만, 쓰기는 하네스 서버나 스크립트가 `SUPABASE_SERVICE_ROLE_KEY`로만 한다.
-4. 서비스 롤 키는 `.env`에만 둔다. 브라우저 코드, 로그, 커밋, 에이전트 메시지에 넣지 않는다.
-5. 에이전트의 진행 보고는 `scripts/harness-report.js`로만 한다. 테이블에 직접 insert/update하는 코드를 에이전트 안에 따로 만들지 않는다.
+3. 모든 `harness_` 테이블은 RLS를 켠다. 대시보드(anon/authenticated)는 읽기만, 쓰기는 하네스 서버(`src/server.js`)나 관리자 스크립트가 `SUPABASE_SERVICE_ROLE_KEY`로만 한다. 브라우저는 Supabase에 직접 닿지 않고 서버 API(`/api/harness/*`)만 쓴다.
+4. 서비스 롤 키는 서버 환경변수/`.env`에만 둔다. 브라우저 코드, 로그, 커밋, 에이전트 메시지에 넣지 않고, 에이전트(Actor)에게도 주지 않는다. 에이전트는 `HARNESS_API_TOKEN`(보고·섹션·위젯 쓰기만 가능)만 받는다.
+5. 에이전트의 진행 보고는 `scripts/harness-report.js`(서버 API `POST /api/harness/report`)로만 한다. 테이블에 직접 insert/update하는 코드를 에이전트 안에 따로 만들지 않는다.
 6. 진행률은 단계(`steps`)가 있으면 끝낸 단계 비율로 계산한다. 단계가 없을 때만 숫자를 직접 보고한다.
 
 ## 3. 에이전트 정의: `agents/<id>.md`
@@ -72,6 +72,22 @@ node scripts/harness-report.js <id> assign  "부서 이름" ["새 업무"]
 - 업무를 시작하면 `start`, 단계를 끝낼 때마다 `step`, 끝나면 `done` 또는 `fail`. 사람 승인이 필요하면 `blocked`로 멈춘다.
 - 메시지에 토큰, 비밀번호, 개인 정보를 넣지 않는다.
 - 60분 넘게 보고가 없으면 대시보드가 "응답 없음"으로 표시한다.
+
+## 6-1. 서버 (src/server.js)
+
+배포된 서버가 대시보드와 보고 API를 모두 제공한다. `SUPABASE_URL`·`SUPABASE_SERVICE_ROLE_KEY`가 없으면 하네스 API는 503이다. 서버는 시작할 때 `agents/*.md`를 Supabase에 동기화한다(`HARNESS_SYNC=0`이면 끔. 실패해도 웹훅은 계속 돈다).
+
+| 경로 | 토큰 | 용도 |
+|---|---|---|
+| `GET /harness` | `DASHBOARD_TOKEN` | 대시보드 페이지 (`?token=`) |
+| `GET /api/harness` | 위와 같음 | 전체 상태 (ETag) |
+| `POST /api/harness/report` | 대시보드 또는 `HARNESS_API_TOKEN` | 진행 보고 (6장 종류와 같음) |
+| `POST /api/harness/sections` | 대시보드 또는 에이전트 | 섹션 추가 → 메뉴에 동적으로 생김 |
+| `PUT /api/harness/widgets` | 대시보드 또는 에이전트 | 섹션 위젯 갱신 (섹션+제목이 같으면 덮어씀) |
+| `DELETE /api/harness/sections/:id` | `DASHBOARD_TOKEN`만 | 섹션 삭제 |
+| `GET /api/harness/motion/:id/:state` | `DASHBOARD_TOKEN` | 렌더된 모션 클립(서명 URL로 이동) |
+
+환경변수: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `DASHBOARD_TOKEN`, `HARNESS_API_TOKEN`. 에이전트 쪽은 `HARNESS_API_URL` + `HARNESS_API_TOKEN`을 두면 `harness-report.js`가 서버로 보낸다.
 
 ## 7. 기존 기능과의 관계
 

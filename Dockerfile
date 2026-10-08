@@ -9,6 +9,10 @@ COPY src ./src
 COPY data/repos.json ./data/repos.json
 COPY scripts ./scripts
 COPY .claude/agents ./.claude/agents
+# 하네스: 에이전트 정의(시작 시 Supabase 동기화), Substrate 매니페스트(정의 검증용), 모션 컴포지션
+COPY agents ./agents
+COPY substrate ./substrate
+COPY motion ./motion
 RUN mkdir -p /data && chown -R node:node /app /data
 USER node
 EXPOSE 3000

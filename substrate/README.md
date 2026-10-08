@@ -21,4 +21,6 @@ kubectl ate create atespace harness                   # 최초 1회
 kubectl ate create actor lumi -a harness --template=harness-agent
 ```
 
-`<digest>`, `<registry>`, `<bucket>` 자리는 실제 값으로 바꿔야 합니다. 비밀값은 `harness-supabase` Secret으로만 넣습니다.
+`<digest>`, `<registry>`, `<bucket>` 자리는 실제 값으로 바꿔야 합니다. 에이전트에는 서비스 롤 키를 주지 않고, 서버 보고 API용 `HARNESS_API_TOKEN`만 `harness-api` Secret으로 넣습니다.
+
+필드 기준: [agent-substrate/substrate](https://github.com/agent-substrate/substrate)의 `docs/api-guide.md`. 그 문서에는 Actor·Atespace 매니페스트와 `kubectl ate`의 `create actor` 외 명령이 없어, 위 흐름의 `create atespace`와 `-a`/`--template` 플래그는 확인되지 않은 부분입니다.

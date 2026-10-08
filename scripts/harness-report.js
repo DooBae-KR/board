@@ -1,56 +1,57 @@
 #!/usr/bin/env node
-// 에이전트 진행 보고 → Supabase (CLAUDE.md 6장)
+// 에이전트 진행 보고 (CLAUDE.md 6장)
 // 사용:
-//   node --env-file=.env scripts/harness-report.js <id> start    "업무 이름" --steps "단계1|단계2|단계3"
-//   node --env-file=.env scripts/harness-report.js <id> step     ["끝낸 단계 한 줄"]
-//   node --env-file=.env scripts/harness-report.js <id> progress 60 ["메모"]      (단계가 없는 업무만)
-//   node --env-file=.env scripts/harness-report.js <id> blocked  "확인이 필요한 이유"
-//   node --env-file=.env scripts/harness-report.js <id> done     "결과 한 줄" [산출물 경로]
-//   node --env-file=.env scripts/harness-report.js <id> fail     "원인"
-//   node --env-file=.env scripts/harness-report.js <id> assign   "부서 이름|대기실" ["새 업무"]
-//   node --env-file=.env scripts/harness-report.js <id> info     "메모"
-import { applyReport, REPORT_KINDS, isLobby } from './lib/harness.js';
-import { createClient } from './lib/supabase.js';
+//   node scripts/harness-report.js <id> start    "업무 이름" --steps "단계1|단계2|단계3"
+//   node scripts/harness-report.js <id> step     ["끝낸 단계 한 줄"]
+//   node scripts/harness-report.js <id> progress 60 ["메모"]      (단계가 없는 업무만)
+//   node scripts/harness-report.js <id> blocked  "확인이 필요한 이유"
+//   node scripts/harness-report.js <id> done     "결과 한 줄" [산출물 경로]
+//   node scripts/harness-report.js <id> fail     "원인"
+//   node scripts/harness-report.js <id> assign   "부서 이름|대기실" ["새 업무"]
+//   node scripts/harness-report.js <id> info     "메모"
+// 전달 방식 (자동 선택)
+//   HARNESS_API_URL + HARNESS_API_TOKEN 이 있으면 서버 API(POST /api/harness/report)로 보낸다 → 에이전트(Actor)용.
+//   없으면 SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY로 직접 쓴다 → 서버 관리자·로컬 개발용.
+import { REPORT_KINDS } from './lib/harness.js';
 
 const argv = process.argv.slice(2);
 const flag = (name) => { const i = argv.indexOf(name); if (i < 0) return null; const v = argv[i + 1]; argv.splice(i, 2); return v ?? ''; };
 const stepsArg = flag('--steps');
-const [id, kind, a1, a2] = argv;
+const [agent, kind, a1, a2] = argv;
 
-if (!id || !REPORT_KINDS.includes(kind)) {
+if (!agent || !REPORT_KINDS.includes(kind)) {
   console.error(`usage: harness-report.js <agent-id> <${REPORT_KINDS.join('|')}> ...  (CLAUDE.md 6장 참고)`);
   process.exit(1);
 }
 
+const input = { agent, kind, message: a1 };
+if (kind === 'start') input.steps = stepsArg ?? '';
+if (kind === 'progress') Object.assign(input, { value: a1, message: a2 });
+if (kind === 'done') input.output = a2;
+if (kind === 'assign') Object.assign(input, { section: a1 ?? '', task: a2, message: '' });
+
+const { HARNESS_API_URL, HARNESS_API_TOKEN } = process.env;
 try {
-  const db = createClient();
-  const [agent] = await db.select('harness_agents', `select=*&${db.eq('id', id)}`);
-  if (!agent) throw new Error(`에이전트 "${id}"가 없습니다. agents/${id}.md를 만들고 scripts/agents-sync.js를 먼저 실행하세요`);
-  if (agent.archived_at) throw new Error(`에이전트 "${id}"는 보관 처리되어 있습니다`);
-
-  const args = { message: a1 };
-  if (kind === 'start') args.steps = stepsArg ? stepsArg.split('|').map((s) => s.trim()).filter(Boolean) : [];
-  if (kind === 'progress') Object.assign(args, { value: a1, message: a2 });
-  if (kind === 'done') args.output = a2;
-  if (kind === 'assign') {
-    const name = String(a1 ?? '').trim();
-    if (!isLobby(name)) {
-      const [sec] = await db.select('harness_sections', `select=id,name&${db.eq('name', name)}`);
-      if (!sec) throw new Error(`부서 "${name}"를 찾지 못했습니다 (대시보드나 agents-sync로 먼저 만드세요)`);
-      args.section = sec;
-    }
-    if (agent.section_id) {
-      const [from] = await db.select('harness_sections', `select=name&${db.eq('id', agent.section_id)}`);
-      args.fromName = from?.name;
-    }
-    Object.assign(args, { message: '', task: a2 });
+  let out;
+  if (HARNESS_API_URL) {
+    if (!HARNESS_API_TOKEN) throw new Error('HARNESS_API_URL을 쓰려면 HARNESS_API_TOKEN도 필요합니다');
+    // 복원된 Actor에서도 안전하도록 요청마다 새로 연결한다 (CLAUDE.md 4-3)
+    const res = await fetch(new URL('/api/harness/report', HARNESS_API_URL), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${HARNESS_API_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `서버가 ${res.status}로 응답했습니다`);
+    out = body;
+  } else {
+    const [{ createClient }, { createStore }, { runReport }] = await Promise.all([
+      import('./lib/supabase.js'), import('./lib/store.js'), import('./lib/report.js'),
+    ]);
+    out = await runReport(createStore(createClient()), input);
   }
-
-  const { patch, event } = applyReport(agent, kind, args);
-  await db.update('harness_agents', db.eq('id', id), patch);
-  await db.insert('harness_agent_events', [event]);
-  const p = patch.progress ?? agent.progress;
-  console.log(`${id}: ${kind} 기록 · 상태 ${patch.status ?? agent.status} · 진행률 ${p}%`);
+  console.log(`${out.agent}: ${out.kind} 기록 · 상태 ${out.status} · 진행률 ${out.progress}%`);
 } catch (e) {
   console.error(e.message);
   process.exit(1);
