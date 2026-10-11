@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>우리 허브</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--fg:#1c2033;--mute:#6b7185;--line:#e3e6f0;--acc:#4f63e0;--acc2:#7f8fff;--ok:#16a34a;--bad:#dc2626;--warn:#d97706;--side:#1f2559;--sidefg:#e9ecff}
+@media (prefers-color-scheme:dark){:root{--bg:#10142e;--card:#181d42;--fg:#e9ecff;--mute:#9aa3d0;--line:#2c3366;--acc:#7f8fff;--acc2:#a9b4ff;--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;--side:#0b0e25}}
+:root[data-theme="sehun"]{--bg:#141a45;--card:#eef2ff;--fg:#2b3170;--mute:#6a73b5;--line:#c5cdf5;--acc:#5a72e8;--side:#0d1130}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Noto Sans KR",sans-serif}
+button,input,select{font:inherit;color:inherit}
+input,select{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-width:0}
+button{cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:7px 12px}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+button.ghost{border:0;background:transparent;color:var(--mute);padding:2px 6px}
+.app{display:grid;grid-template-columns:230px 1fr;min-height:100vh}
+nav{background:var(--side);color:var(--sidefg);padding:14px 10px;display:flex;flex-direction:column;gap:2px;position:sticky;top:0;height:100vh;overflow:auto}
+nav h1{font-size:17px;margin:4px 8px 12px}
+nav a{display:block;padding:8px 10px;border-radius:8px;color:inherit;text-decoration:none;cursor:pointer}
+nav a:hover{background:#ffffff18}nav a.on{background:var(--acc);color:#fff}
+nav .sep{height:1px;background:#ffffff22;margin:8px 4px}
+nav small{color:#aab4ff;padding:0 10px}
+main{padding:18px;max-width:1000px;width:100%}
+h2{margin:0 0 12px;font-size:20px}h3{margin:0 0 8px;font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;overflow:auto}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.kpi b{display:block;font-size:22px}.kpi span{color:var(--mute);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}th{color:var(--mute);font-weight:600;white-space:nowrap}
+.pos{color:var(--ok)}.neg{color:var(--bad)}.mute{color:var(--mute)}
+.done{text-decoration:line-through;color:var(--mute)}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:1px 10px;font-size:12px;margin:2px;cursor:pointer;background:var(--card)}
+.warn{background:#fff7e0;color:#7a4b00;border:1px solid #f0d58a;border-radius:10px;padding:8px 12px;font-size:13px;margin-bottom:12px}
+.auth{max-width:380px;margin:12vh auto;padding:0 16px}
+.msg{font-size:13px;color:var(--bad);min-height:20px}
+.tag{font-size:12px;border:1px solid currentColor;border-radius:99px;padding:0 8px}
+canvas{max-height:260px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.dd{min-width:150px;flex:1}.dd b{font-size:26px;display:block}.dd.hot b{color:var(--bad)}
+.meter{height:12px;background:var(--line);border-radius:6px;overflow:hidden}.meter i{display:block;height:100%;background:var(--ok);transition:width .3s}
+mark{background:#ffe27a;color:#3b2a00;border-radius:4px;padding:0 4px}
+.notice{background:#eaf0ff;border:1px solid #b9c4f5;color:#243079;border-radius:10px;padding:10px 12px;margin-bottom:12px}
+.pre{white-space:pre-wrap}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--fg);max-width:440px;width:92%}
+dialog::backdrop{background:#0008}
+label{display:block;font-size:13px;color:var(--mute);margin:8px 0 3px}
+.fld{display:flex;gap:6px;margin-bottom:6px}
+@media(max-width:760px){.app{grid-template-columns:1fr}nav{position:static;height:auto;flex-direction:row;flex-wrap:wrap}nav h1{width:100%}nav .sep{display:none}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
+
+<script>
+/* ───────── 설정 ───────── */
+const SUPABASE_URL = 'https://yzjbaenqfnyqfoaxqegu.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ZzdFtBpi4yr_izJWnot-mw_i6efql7x'; // 공개용 publishable 키 (RLS로 보호됨)
+const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+const friendly = (e, map = {}) => map[e.code] || e.message;
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const S = { user: null, couple: null, me: null, members: [], cats: [], view: 'cat', catId: null, recs: {}, charts: [] };
+
+/* ───────── 유틸 ───────── */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = id => document.getElementById(id);
+const today = () => new Date().toLocaleDateString('sv');
+const won = n => (n < 0 ? '-' : '') + Math.abs(Math.round(n)).toLocaleString('ko-KR') + '원';
+const ym = d => (d || '').slice(0, 7);
+const who = uid => S.members.find(m => m.user_id === uid)?.display_name || '?';
+const KIND = { ledger: '가계부(금액)', event: '일정(날짜)', todo: '할 일(체크)', table: '사용자 정의 표' };
+const toast = t => alert(t);
+const clearCharts = () => { S.charts.forEach(c => c.destroy()); S.charts = []; };
+const chart = (id, cfg) => { const el = $(id); if (el) S.charts.push(new Chart(el, cfg)); };
+const cur = () => S.cats.find(c => c.id === S.catId);
+
+/* ───────── 부팅 / 인증 ───────── */
+sb.auth.onAuthStateChange((ev, session) => {
+  const uid = session?.user?.id;
+  if (ev === 'SIGNED_OUT' || !uid) {
+    Object.assign(S, { user: null, couple: null, me: null, members: [], cats: [], catId: null, recs: {}, watch: [], view: 'cat' });
+    Object.assign(ST, { exams: [], plans: [], files: [], digests: [], weekly: [], topics: [], notified: false });
+    clearCharts(); return boot();
+  }
+  if (uid === S.user?.id && S.couple) return; // 토큰 갱신·탭 복귀는 무시
+  S.user = session.user; setTimeout(boot, 0);
+});
+async function boot() {
+  if (!S.user) return renderAuth();
+  const { data, error } = await sb.from('cp_members').select('couple_id,display_name,user_id,cp_couples(name,invite_code)').eq('user_id', S.user.id).limit(1);
+  if (error) return ($('root').innerHTML = `<div class="auth"><p class="neg">불러오기 실패: ${esc(error.message)}</p><button onclick="sb.auth.signOut()">로그아웃</button></div>`);
+  if (!data.length) return renderOnboard();
+  S.couple = { id: data[0].couple_id, ...data[0].cp_couples }; S.me = data[0];
+  try { await loadCouple(); render(); }
+  catch (e) { $('root').innerHTML = `<div class="auth"><p class="neg">불러오기 실패: ${esc(e.message)}</p><button onclick="boot()">다시 시도</button></div>`; }
+}
+async function loadCouple() {
+  const [m, c] = await Promise.all([
+    sb.from('cp_members').select('user_id,display_name').eq('couple_id', S.couple.id),
+    sb.from('cp_categories').select('*').eq('couple_id', S.couple.id).order('sort').order('created_at'),
+  ]);
+  if (m.error || c.error) throw new Error((m.error || c.error).message);
+  S.members = m.data || []; S.cats = c.data || [];
+  if (!S.catId || !cur()) S.catId = S.cats[0]?.id;
+}
+
+function renderAuth() {
+  $('root').innerHTML = `<div class="auth card"><h2>💑 우리 허브</h2>
+    <p class="mute">데이트통장 · 공유 일정 · 할 일 · 미장 분석</p>
+    <label>이메일</label><input id="em" type="email" style="width:100%">
+    <label>비밀번호 (6자 이상)</label><input id="pw" type="password" style="width:100%">
+    <div class="row" style="margin-top:12px"><button class="pri" onclick="auth('in')">로그인</button><button onclick="auth('up')">회원가입</button></div>
+    <div class="msg" id="amsg"></div></div>`;
+}
+async function auth(mode) {
+  const email = $('em').value.trim(), password = $('pw').value;
+  const { data, error } = mode === 'in' ? await sb.auth.signInWithPassword({ email, password }) : await sb.auth.signUp({ email, password });
+  if (error) $('amsg').textContent = error.message;
+  else if (mode === 'up' && !data.session) $('amsg').textContent = '가입 완료! 메일 인증 후 로그인하세요.';
+}
+function renderOnboard() {
+  $('root').innerHTML = `<div class="auth card"><h2>처음이시군요 🎉</h2>
+    <h3>① 새로 시작하기</h3><label>우리 이름</label><input id="cn" placeholder="예: 세훈 ♥ 지수" style="width:100%">
+    <label>내 이름(표시용)</label><input id="dn1" style="width:100%"><button class="pri" style="margin-top:10px" onclick="createCouple()">만들기</button>
+    <div class="sep" style="height:1px;background:var(--line);margin:16px 0"></div>
+    <h3>② 초대 코드로 합류</h3><label>초대 코드</label><input id="ic" style="width:100%">
+    <label>내 이름(표시용)</label><input id="dn2" style="width:100%"><button style="margin-top:10px" onclick="joinCouple()">합류하기</button>
+    <div class="msg" id="omsg"></div><button class="ghost" onclick="sb.auth.signOut()">로그아웃</button></div>`;
+}
+async function createCouple() {
+  const { error } = await sb.rpc('cp_create_couple', { p_name: $('cn').value, p_display_name: $('dn1').value });
+  error ? ($('omsg').textContent = error.message) : boot();
+}
+async function joinCouple() {
+  const { error } = await sb.rpc('cp_join_couple', { p_code: $('ic').value.trim(), p_display_name: $('dn2').value });
+  error ? ($('omsg').textContent = error.message) : boot();
+}
+
+/* ───────── 레이아웃 (동적 메뉴) ───────── */
+function render() {
+  clearCharts();
+  const menu = S.cats.map(c => `<a class="${S.view === 'cat' && S.catId === c.id ? 'on' : ''}" onclick="go('cat','${c.id}')">${esc(c.icon)} ${esc(c.name)}</a>`).join('');
+  $('root').innerHTML = `<div class="app"><nav>
+    <h1>💑 ${esc(S.couple.name)}</h1>
+    ${menu}
+    <a onclick="addCategory()" style="color:#aab4ff">＋ 카테고리 추가</a>
+    <div class="sep"></div>
+    <a class="${S.view === 'study' ? 'on' : ''}" onclick="go('study')">📚 스터디 플래너</a>
+    <a class="${S.view === 'charts' ? 'on' : ''}" onclick="go('charts')">📊 차트·그래프</a>
+    <a class="${S.view === 'stocks' ? 'on' : ''}" onclick="go('stocks')">🇺🇸 미장 분석</a>
+    <div class="sep"></div>
+    <small>초대 코드</small><small><b>${esc(S.couple.invite_code)}</b></small>
+    <small>${S.members.map(m => esc(m.display_name)).join(' · ')}</small>
+    <div class="sep"></div>
+    <small>테마 <select id="thm" onchange="setTheme(this.value)"><option value="">기본</option><option value="sehun">세훈이</option></select></small>
+    <a onclick="sb.auth.signOut()">로그아웃</a></nav>
+    <main id="main"></main></div>`;
+  const t = lsGet('theme') || ''; $('thm').value = t;
+  ({ cat: renderCat, charts: renderCharts, stocks: renderStocks, study: renderStudy })[S.view]();
+}
+function setTheme(t) { lsSet('theme', t); applyTheme(); }
+function applyTheme() { const t = lsGet('theme'); t ? document.documentElement.dataset.theme = t : delete document.documentElement.dataset.theme; }
+applyTheme();
+function go(view, id) { S.view = view; if (id) S.catId = id; render(); }
+
+/* ───────── 카테고리 추가 (동적 메뉴 생성) ───────── */
+function addCategory() {
+  $('dlgForm').innerHTML = `<h3>새 카테고리</h3>
+    <label>이름</label><input id="cname" maxlength="40" style="width:100%" placeholder="예: 여행 경비, 운동 기록">
+    <label>아이콘(이모지)</label><input id="cicon" value="📁" style="width:80px">
+    <label>종류</label><select id="ckind" onchange="$('fieldsBox').style.display=this.value==='table'?'block':'none'">
+      ${Object.entries(KIND).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+    <div id="fieldsBox" style="display:none"><label>필드 (한 줄에 하나: 이름:종류 — text / number / date)</label>
+      <textarea id="cfields" rows="4" style="width:100%;background:var(--card);color:inherit;border:1px solid var(--line);border-radius:8px;padding:6px" placeholder="몸무게:number&#10;메모:text"></textarea></div>
+    <div class="row" style="margin-top:12px"><button class="pri">만들기</button><button type="button" onclick="$('dlg').close()">취소</button></div>`;
+  $('dlgForm').onsubmit = e => { e.preventDefault(); saveCategory(); };
+  $('dlg').showModal();
+}
+async function saveCategory() {
+  if (S.saving) return;
+  const kind = $('ckind').value, name = $('cname').value.trim();
+  if (!name) return;
+  S.saving = true;
+  const fields = kind !== 'table' ? [] : $('cfields').value.split('\n').map(l => l.trim()).filter(Boolean).map((l, i) => {
+    const [label, type = 'text'] = l.split(':').map(x => x.trim());
+    return { key: 'f' + i, label, type: ['text', 'number', 'date'].includes(type) ? type : 'text' };
+  });
+  if (kind === 'table' && !fields.length) { S.saving = false; return toast('필드를 한 개 이상 입력하세요'); }
+  const { data, error } = await sb.from('cp_categories').insert({ couple_id: S.couple.id, kind, name, icon: $('cicon').value || '📁', fields, sort: 100 + S.cats.length }).select().single();
+  S.saving = false;
+  if (error) return toast(friendly(error, { '23505': '이미 같은 이름의 카테고리가 있어요', '23514': '이름은 1~40자여야 해요' }));
+  $('dlg').close(); await loadCouple(); S.view = 'cat'; S.catId = data.id; render();
+}
+async function deleteCategory(id) {
+  if (!confirm('카테고리와 안의 모든 기록이 삭제됩니다. 계속할까요?')) return;
+  const { error } = await sb.from('cp_categories').delete().eq('id', id);
+  if (error) return toast(error.message);
+  S.catId = null; delete S.recs[id]; await loadCouple(); render();
+}
+
+/* ───────── 기록 CRUD ───────── */
+async function fetchRecs(catId) {
+  const { data, error } = await sb.from('cp_records').select('*').eq('category_id', catId).order('on_date', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false }).limit(1000);
+  if (error) { toast(error.message); return []; }
+  return (S.recs[catId] = data);
+}
+async function addRec(rec) {
+  const { error } = await sb.from('cp_records').insert({ couple_id: S.couple.id, category_id: S.catId, ...rec });
+  if (error) return toast(error.message);
+  render();
+}
+async function delRec(id) { const { error } = await sb.from('cp_records').delete().eq('id', id); error ? toast(error.message) : render(); }
+async function toggleDone(id, v) { const { error } = await sb.from('cp_records').update({ done: v }).eq('id', id); error ? toast(error.message) : render(); }
+
+function exportCsv() {
+  const c = cur(), rows = S.recs[c.id] || [];
+  const cols = ['날짜', '제목', '금액', '완료', '작성자', ...c.fields.map(f => f.label)];
+  const q = v => { let s = String(v ?? ''); if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; }; // 수식 주입 방지(숫자는 그대로)
+  const lines = [cols.map(q).join(',')].concat(rows.map(r => [r.on_date, r.title, r.amount, r.done ? 'Y' : '', who(r.created_by), ...c.fields.map(f => r.data?.[f.key])].map(q).join(',')));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
+  a.download = `${c.name}-${today()}.csv`; a.click();
+}
+
+/* ───────── 카테고리 화면 (종류별) ───────── */
+async function renderCat() {
+  const c = cur(), m = $('main');
+  if (!c) return (m.innerHTML = '<p class="mute">왼쪽에서 카테고리를 만들어 주세요.</p>');
+  m.innerHTML = '<p class="mute">불러오는 중…</p>';
+  const rows = await fetchRecs(c.id);
+  if (S.view !== 'cat' || S.catId !== c.id) return;
+  const head = `<div class="row" style="justify-content:space-between"><h2>${esc(c.icon)} ${esc(c.name)} <span class="tag mute">${KIND[c.kind]}</span></h2>
+    <div class="row"><button onclick="exportCsv()">⬇ CSV 추출</button><button class="ghost" onclick="deleteCategory('${c.id}')">🗑 삭제</button></div></div>`;
+  m.innerHTML = head + ({ ledger: viewLedger, event: viewEvent, todo: viewTodo, table: viewTable })[c.kind](c, rows);
+}
+const delBtn = id => `<button class="ghost" onclick="delRec('${id}')">✕</button>`;
+
+function viewLedger(c, rows) {
+  const mon = ym(today()), inM = rows.filter(r => ym(r.on_date) === mon);
+  const inc = inM.filter(r => r.amount > 0).reduce((a, r) => a + +r.amount, 0), exp = inM.filter(r => r.amount < 0).reduce((a, r) => a + +r.amount, 0);
+  const total = rows.reduce((a, r) => a + +r.amount, 0);
+  return `${rows.length >= 1000 ? '<div class="warn">최근 1000건만 불러와서 합계가 실제와 다를 수 있어요.</div>' : ''}<div class="grid"><div class="card kpi"><b class="pos">${won(inc)}</b><span>이번 달 입금</span></div>
+    <div class="card kpi"><b class="neg">${won(exp)}</b><span>이번 달 지출</span></div>
+    <div class="card kpi"><b>${won(total)}</b><span>통장 잔액(누적)</span></div></div>
+    <div class="card"><div class="row"><input id="rd" type="date" value="${today()}"><select id="rt"><option value="-1">지출</option><option value="1">입금</option></select>
+      <input id="rn" maxlength="200" placeholder="내용 (예: 영화, 저녁)" style="flex:1"><input id="ra" type="number" min="0" placeholder="금액" style="width:120px">
+      <button class="pri" onclick="addLedger()">추가</button></div></div>
+    <div class="card"><table><tr><th>날짜</th><th>내용</th><th>작성</th><th style="text-align:right">금액</th><th></th></tr>
+    ${rows.map(r => `<tr><td>${esc(r.on_date)}</td><td>${esc(r.title)}</td><td>${esc(who(r.created_by))}</td><td style="text-align:right" class="${r.amount < 0 ? 'neg' : 'pos'}">${won(r.amount)}</td><td>${delBtn(r.id)}</td></tr>`).join('') || '<tr><td colspan="5" class="mute">아직 기록이 없어요</td></tr>'}</table></div>`;
+}
+function addLedger() {
+  const a = Math.abs(+$('ra').value), title = $('rn').value.trim();
+  if (!title) return toast('내용을 입력하세요');
+  if (!Number.isFinite(a) || a <= 0 || a > 1e12) return toast('금액을 올바르게 입력하세요');
+  addRec({ title, amount: a * +$('rt').value, on_date: $('rd').value || today() });
+}
+function viewEvent(c, rows) {
+  const up = rows.filter(r => r.on_date >= today()).reverse(), past = rows.filter(r => r.on_date < today());
+  const list = a => a.map(r => `<tr><td>${esc(r.on_date)}</td><td>${esc(r.title)}</td><td class="mute">${esc(who(r.created_by))}</td><td>${delBtn(r.id)}</td></tr>`).join('') || '<tr><td colspan="4" class="mute">없음</td></tr>';
+  return `<div class="card"><div class="row"><input id="ed" type="date" value="${today()}"><input id="et" maxlength="200" placeholder="일정 (예: 기념일 저녁)" style="flex:1"><button class="pri" onclick="addEvent()">추가</button></div></div>
+    <div class="card"><h3>다가오는 일정</h3><table>${list(up)}</table></div><div class="card"><h3>지난 일정</h3><table>${list(past)}</table></div>`;
+}
+function addEvent() { const t = $('et').value.trim(); if (!t) return; addRec({ title: t, on_date: $('ed').value || today() }); }
+function viewTodo(c, rows) {
+  const li = r => `<tr><td style="width:30px"><input type="checkbox" ${r.done ? 'checked' : ''} onchange="toggleDone('${r.id}',this.checked)"></td>
+    <td class="${r.done ? 'done' : ''}">${esc(r.title)}</td><td class="mute">${esc(who(r.created_by))}</td><td>${delBtn(r.id)}</td></tr>`;
+  return `<div class="card"><div class="row"><input id="tt" maxlength="200" placeholder="같이 할 일" style="flex:1"><button class="pri" onclick="addTodo()">추가</button></div></div>
+    <div class="card"><table>${rows.filter(r => !r.done).map(li).join('') || '<tr><td class="mute">할 일이 없어요 🎉</td></tr>'}</table></div>
+    <div class="card"><h3>완료 (${rows.filter(r => r.done).length})</h3><table>${rows.filter(r => r.done).map(li).join('')}</table></div>`;
+}
+function addTodo() { const t = $('tt').value.trim(); if (t) addRec({ title: t }); }
+function viewTable(c, rows) {
+  const inp = f => `<input id="f_${esc(f.key)}" type="${esc(f.type)}" placeholder="${esc(f.label)}" style="width:${f.type === 'text' ? 160 : 130}px">`;
+  return `<div class="card"><div class="row"><input id="tdate" type="date" value="${today()}">${c.fields.map(inp).join('')}<button class="pri" onclick="addTableRow()">추가</button></div></div>
+    <div class="card"><table><tr><th>날짜</th>${c.fields.map(f => `<th>${esc(f.label)}</th>`).join('')}<th>작성</th><th></th></tr>
+    ${rows.map(r => `<tr><td>${esc(r.on_date)}</td>${c.fields.map(f => `<td>${esc(r.data?.[f.key])}</td>`).join('')}<td class="mute">${esc(who(r.created_by))}</td><td>${delBtn(r.id)}</td></tr>`).join('') || `<tr><td colspan="${c.fields.length + 3}" class="mute">아직 기록이 없어요</td></tr>`}</table></div>`;
+}
+function addTableRow() {
+  const c = cur(), data = {};
+  for (const f of c.fields) { const v = $('f_' + f.key).value; data[f.key] = f.type === 'number' && v !== '' ? +v : v; }
+  const first = c.fields[0];
+  addRec({ title: String(data[first.key] || c.name).slice(0, 200), on_date: $('tdate').value || today(), data });
+}
+
+/* ───────── 자동 차트 (카테고리마다 데이터를 뽑아 그림) ───────── */
+async function renderCharts() {
+  const m = $('main'); m.innerHTML = '<h2>📊 차트·그래프</h2><p class="mute">카테고리를 추가하면 종류에 맞는 차트가 자동으로 생깁니다.</p>';
+  const palette = ['#4f63e0', '#e0841f', '#2fa56a', '#e5486b', '#8b5cf6', '#0ea5e9'];
+  const tok = (S.chTok = (S.chTok || 0) + 1);
+  for (const c of S.cats) {
+    const rows = await fetchRecs(c.id);
+    if (tok !== S.chTok || S.view !== 'charts') return;
+    const id = 'ch_' + c.id, box = document.createElement('div'); box.className = 'card';
+    box.innerHTML = `<h3>${esc(c.icon)} ${esc(c.name)}</h3>` + (rows.length ? `<canvas id="${id}"></canvas>` : '<span class="mute">기록이 생기면 차트가 나타나요</span>');
+    m.appendChild(box); if (!rows.length) continue;
+    const months = [...new Set(rows.map(r => ym(r.on_date || r.created_at)))].sort();
+    const by = (fn, filt = () => true) => months.map(mo => rows.filter(r => ym(r.on_date || r.created_at) === mo && filt(r)).reduce((a, r) => a + fn(r), 0));
+    if (c.kind === 'ledger') {
+      let run = 0; const bal = months.map((mo, i) => (run += by(r => +r.amount)[i]));
+      chart(id, { type: 'bar', data: { labels: months, datasets: [
+        { type: 'bar', label: '입금', data: by(r => +r.amount, r => r.amount > 0), backgroundColor: '#2fa56a' },
+        { type: 'bar', label: '지출', data: by(r => -r.amount, r => r.amount < 0), backgroundColor: '#e5486b' },
+        { type: 'line', label: '누적 잔액', data: bal, borderColor: '#4f63e0', tension: .25 }] }, options: { responsive: true } });
+    } else if (c.kind === 'todo') {
+      const d = rows.filter(r => r.done).length;
+      chart(id, { type: 'doughnut', data: { labels: ['완료', '남음'], datasets: [{ data: [d, rows.length - d], backgroundColor: ['#2fa56a', '#c5cdf5'] }] } });
+    } else if (c.kind === 'event') {
+      chart(id, { type: 'bar', data: { labels: months, datasets: [{ label: '일정 수', data: by(() => 1), backgroundColor: '#4f63e0' }] } });
+    } else {
+      const nums = c.fields.filter(f => f.type === 'number');
+      if (!nums.length) { $(id).replaceWith(Object.assign(document.createElement('span'), { className: 'mute', textContent: '숫자 필드가 있으면 월별 합계 차트가 나타나요' })); continue; }
+      chart(id, { type: 'line', data: { labels: months, datasets: nums.map((f, i) => ({ label: f.label + ' (월 합계)', data: by(r => +r.data?.[f.key] || 0), borderColor: palette[i % 6], tension: .25 })) } });
+    }
+  }
+}
+
+/* ───────── 미장 분석 (gs-quant 에이전트) ───────── */
+const agentUrl = () => (lsGet('agentUrl') || 'http://localhost:8000').replace(/\/$/, '');
+const n = v => esc(v ?? '-'); // 에이전트 응답은 신뢰하지 않고 모두 이스케이프
+const COMMON = ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'SPY', 'QQQ'];
+async function renderStocks() {
+  const { data } = await sb.from('cp_watchlist').select('symbol,note').eq('couple_id', S.couple.id).order('created_at');
+  S.watch = data || [];
+  $('main').innerHTML = `<h2>🇺🇸 미장 분석</h2>
+    <div class="warn">⚠ 아래 매수·매도가는 gs-quant 지표(이동평균·RSI·볼린저·MACD·변동성)로 계산한 <b>참고용 기술적 분석</b>이며 투자 권유나 수익 보장이 아닙니다. 투자 판단과 손실 책임은 본인에게 있습니다.</div>
+    <div class="card"><div class="row"><label style="margin:0">에이전트 주소</label><input id="au" value="${esc(agentUrl())}" style="flex:1;min-width:200px">
+      <button onclick="lsSet('agentUrl',$('au').value);toast('저장됨')">저장</button></div>
+      <p class="mute" style="font-size:13px;margin:6px 0 0">agent 폴더에서 <code>uvicorn app:app --port 8000</code> 실행 후 사용하세요.</p></div>
+    <div class="card"><h3>공유 관심 종목</h3><div class="row"><input id="sy" placeholder="티커 (예: AAPL)" style="width:150px;text-transform:uppercase"><button onclick="addWatch()">추가</button>
+      <button class="pri" onclick="runScreen()">전체 분석</button></div>
+      <div style="margin-top:6px"><span class="mute" style="font-size:12px">자주 보는 티커:</span>${COMMON.map(t => `<span class="chip" onclick="$('sy').value='${t}'">${t}</span>`).join('')}</div>
+      <div style="margin-top:8px">${S.watch.map(w => `<span class="chip" data-s="${esc(w.symbol)}" onclick="runOne(this.dataset.s)">${esc(w.symbol)} <b data-s="${esc(w.symbol)}" onclick="event.stopPropagation();delWatch(this.dataset.s)">✕</b></span>`).join('') || '<span class="mute">관심 종목을 추가하세요</span>'}</div></div>
+    <div id="sres"></div>`;
+}
+async function addWatch() {
+  const symbol = $('sy').value.trim().toUpperCase(); if (!symbol) return;
+  const { error } = await sb.from('cp_watchlist').insert({ couple_id: S.couple.id, symbol });
+  error ? toast(friendly(error, { '23514': '티커 형식이 올바르지 않아요(영문/./- 만, 10자 이내)', '23505': '이미 등록된 종목이에요' })) : render();
+}
+async function delWatch(symbol) { await sb.from('cp_watchlist').delete().eq('couple_id', S.couple.id).eq('symbol', symbol); render(); }
+async function agent(path) {
+  try { const r = await fetch(agentUrl() + path); const j = await r.json(); if (!r.ok) throw new Error(j.detail || r.status); return j; }
+  catch (e) { $('sres').innerHTML = `<div class="card neg">에이전트 호출 실패: ${esc(e.message)}<br><span class="mute">에이전트 서버가 켜져 있는지, 주소가 맞는지 확인하세요.</span></div>`; return null; }
+}
+async function runScreen() {
+  if (!S.watch.length) return toast('관심 종목을 먼저 추가하세요');
+  $('sres').innerHTML = '<p class="mute">분석 중…</p>';
+  const j = await agent('/screen?symbols=' + encodeURIComponent(S.watch.map(w => w.symbol).join(',')));
+  if (!j) return;
+  $('sres').innerHTML = `<div class="card"><h3>점수순 요약</h3><table><tr><th>종목</th><th>판정</th><th>점수</th><th>현재가</th><th>매수 참고가</th><th>매도 참고가</th><th>손절 참고가</th></tr>
+    ${j.results.map(r => `<tr style="cursor:pointer" data-s="${esc(r.symbol)}" onclick="runOne(this.dataset.s)"><td><b>${esc(r.symbol)}</b></td><td>${esc(r.verdict)}</td><td>${n(r.score)}</td><td>$${n(r.last)}</td><td>$${n(r.buy_price)}</td><td class="pos">$${n(r.target_price)}</td><td class="neg">$${n(r.stop_price)}</td></tr>`).join('')}</table>
+    ${Object.keys(j.errors).length ? `<p class="neg" style="font-size:13px">${Object.entries(j.errors).map(([k, v]) => esc(k + ': ' + v)).join('<br>')}</p>` : ''}
+    <p class="mute" style="font-size:12px">${esc(j.disclaimer)}</p></div><div id="one"></div>`;
+}
+async function runOne(sym) {
+  if (!$('one')) $('sres').innerHTML = '<div id="one"></div>';
+  $('one').innerHTML = '<p class="mute">분석 중…</p>';
+  const r = await agent('/analyze?symbol=' + encodeURIComponent(sym)); if (!r) return;
+  const i = r.indicators;
+  $('one').innerHTML = `<div class="card"><h3>${esc(r.symbol)} · ${esc(r.verdict)} (점수 ${n(r.score)}) <span class="mute" style="font-weight:400">기준일 ${esc(r.as_of)}</span></h3>
+    <div class="grid"><div class="kpi"><b>$${n(r.last)}</b><span>현재가</span></div><div class="kpi"><b>$${n(r.buy_price)}</b><span>매수 참고가</span></div>
+    <div class="kpi"><b class="pos">$${n(r.target_price)}</b><span>매도(목표) 참고가</span></div><div class="kpi"><b class="neg">$${n(r.stop_price)}</b><span>손절 참고가</span></div>
+    <div class="kpi"><b>${n(r.reward_risk)}</b><span>손익비(목표÷손절폭)</span></div></div>
+    <canvas id="pc" style="margin-top:12px"></canvas>
+    <p style="font-size:13px"><b>근거</b><br>${r.reasons.map(esc).join('<br>') || '뚜렷한 신호 없음'}</p>
+    <p class="mute" style="font-size:13px">RSI ${n(i.rsi14)} · 20/50/200일선 ${n(i.ma20)}/${n(i.ma50)}/${n(i.ma200)} · MACD 히스토그램 ${n(i.macd_hist)} · 연환산 변동성 ${n(i.vol_annual_pct)}%</p>
+    <p class="mute" style="font-size:12px">${esc(r.disclaimer)}</p></div>`;
+  clearCharts(); const s = r.series;
+  chart('pc', { type: 'line', data: { labels: s.dates, datasets: [
+    { label: '종가', data: s.close, borderColor: '#4f63e0', pointRadius: 0, borderWidth: 2 },
+    { label: '20일선', data: s.ma20, borderColor: '#e0841f', pointRadius: 0, borderWidth: 1 },
+    { label: '볼린저 상단', data: s.bb_hi, borderColor: '#9aa3d0', borderDash: [4, 3], pointRadius: 0, borderWidth: 1 },
+    { label: '볼린저 하단', data: s.bb_lo, borderColor: '#9aa3d0', borderDash: [4, 3], pointRadius: 0, borderWidth: 1 }] },
+    options: { responsive: true, interaction: { mode: 'index', intersect: false }, scales: { x: { ticks: { maxTicksLimit: 8 } } } } });
+}
+
+/* ───────── 스터디 플래너 (본인 전용 데이터) ───────── */
+const ST = { tab: 'today', date: today(), exams: [], plans: [], files: [], digests: [], weekly: [], topics: [], notified: false };
+const pd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const dstr = d => d.toLocaleDateString('sv');
+const addDays = (s, n) => { const d = pd(s); d.setDate(d.getDate() + n); return dstr(d); };
+const monday = s => { const d = pd(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return dstr(d); };
+const diffDays = (a, b) => Math.round((pd(a) - pd(b)) / 864e5);
+const ddayText = s => { const n = diffDays(s, today()); return n === 0 ? 'D-DAY' : n > 0 ? 'D-' + n : 'D+' + -n; };
+const rateOf = ps => {
+  const done = ps.filter(p => p.done), tm = ps.reduce((a, p) => a + p.target_minutes, 0), dm = done.reduce((a, p) => a + p.target_minutes, 0);
+  return { total: ps.length, done: done.length, pct: ps.length ? Math.round(done.length / ps.length * 100) : 0, mins: dm, minsTotal: tm };
+};
+const meter = pct => `<div class="meter"><i style="width:${pct}%"></i></div>`;
+
+async function renderStudy() {
+  $('main').innerHTML = '<p class="mute">불러오는 중…</p>';
+  const from = addDays(today(), -35);
+  const [e, p, f, d, w, t] = await Promise.all([
+    sb.from('cp_study_exams').select('*').order('exam_date'),
+    sb.from('cp_study_plans').select('*').gte('plan_date', from).order('plan_date').order('created_at'),
+    sb.from('cp_study_files').select('id,study_date,file_name,mime,size_bytes,extract_status,summary_status,created_at').gte('study_date', from).order('created_at', { ascending: false }),
+    sb.from('cp_study_digests').select('*').gte('study_date', from).order('study_date', { ascending: false }),
+    sb.from('cp_study_weekly').select('*').order('week_start', { ascending: false }).limit(12),
+    sb.from('cp_study_topics').select('*').order('mentions', { ascending: false }).limit(50),
+  ]);
+  const err = [e, p, f, d, w, t].find(x => x.error);
+  if (err) return ($('main').innerHTML = `<p class="neg">불러오기 실패: ${esc(err.error.message)}</p>`);
+  Object.assign(ST, { exams: e.data, plans: p.data, files: f.data, digests: d.data, weekly: w.data, topics: t.data });
+  drawStudy();
+  maybeNotify();
+}
+function setTab(t) { ST.tab = t; drawStudy(); }
+function drawStudy() {
+  clearCharts();
+  const tabs = [['today', '🗓 오늘'], ['rate', '📈 달성률'], ['upload', '⬆ 파일 업로드'], ['digest', '🌅 아침 요약'], ['weekly', '📄 주간 문서']];
+  const ready = ST.weekly.filter(x => x.status === 'ready');
+  const banner = ready.length ? `<div class="notice">📄 <b>${esc(ready[0].week_start)}</b> 주의 학습 문서가 준비됐어요. 다운받으시겠어요?
+    <div class="row" style="margin-top:6px"><button class="pri" onclick="downloadWeekly('${ready[0].id}')">다운로드</button>
+    <button onclick="setTab('weekly')">내용 보기</button><button onclick="markWeekly('${ready[0].id}','declined')">받지 않기</button>
+    <button class="ghost" onclick="this.closest('.notice').remove()">나중에</button></div></div>` : '';
+  $('main').innerHTML = `<h2>📚 스터디 플래너</h2>${banner}
+    <div class="tabs">${tabs.map(([k, v]) => `<button class="${ST.tab === k ? 'on' : ''}" onclick="setTab('${k}')">${v}</button>`).join('')}</div><div id="stab"></div>`;
+  ({ today: tabToday, rate: tabRate, upload: tabUpload, digest: tabDigest, weekly: tabWeekly })[ST.tab]();
+}
+
+/* 오늘 탭: D-day, 달성률, 계획 */
+function tabToday() {
+  const day = ST.date, ps = ST.plans.filter(p => p.plan_date === day), r = rateOf(ps);
+  const upcoming = ST.exams.filter(x => diffDays(x.exam_date, today()) >= -7);
+  const yd = ST.digests.find(x => x.study_date === addDays(today(), -1));
+  $('stab').innerHTML = `
+  <div class="row" style="margin-bottom:12px">${upcoming.map(x => { const n = diffDays(x.exam_date, today());
+    return `<div class="card dd ${n >= 0 && n <= 7 ? 'hot' : ''}" style="margin:0"><b>${ddayText(x.exam_date)}</b>${esc(x.title)}<div class="mute" style="font-size:12px">${esc(x.exam_date)} <button class="ghost" onclick="delRow('cp_study_exams','${x.id}')">✕</button></div></div>`; }).join('') || '<span class="mute">시험을 등록하면 D-day가 표시돼요</span>'}</div>
+  <div class="card"><div class="row"><input id="xt" maxlength="80" placeholder="시험 이름 (예: 토익, 정보처리기사)" style="flex:1"><input id="xd" type="date"><button onclick="addExam()">시험 추가</button></div></div>
+  <div class="card"><h3>🌅 어제 공부한 내용</h3>${yd ? digestHtml(yd) : '<span class="mute">어제 올린 파일이 요약되면 여기에 아침마다 표시돼요. (⬆ 파일 업로드 탭)</span>'}</div>
+  <div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">${day === today() ? '오늘' : esc(day)} 달성률</h3>
+      <input type="date" value="${day}" onchange="ST.date=this.value||today();drawStudy()"></div>
+    <div style="font-size:26px;font-weight:700;margin:6px 0">${r.pct}% <span class="mute" style="font-size:14px;font-weight:400">완료 ${r.done}/${r.total} · 계획 시간 ${r.mins}/${r.minsTotal}분</span></div>${meter(r.pct)}</div>
+  <div class="card"><div class="row"><input id="ps" maxlength="40" placeholder="과목" value="${esc(lsGet('lastSubject') || '')}" style="width:110px"><input id="pt" maxlength="200" placeholder="오늘 할 공부 (예: 영어 단어 50개)" style="flex:1;min-width:160px">
+    <input id="pm" type="number" min="0" max="1440" placeholder="목표(분)" style="width:100px"><button class="pri" onclick="addPlan()">계획 추가</button></div></div>
+  <div class="card"><table>${ps.map(p => `<tr><td style="width:30px"><input type="checkbox" ${p.done ? 'checked' : ''} onchange="togglePlan('${p.id}',this.checked)"></td>
+    <td><span class="tag mute">${esc(p.subject)}</span></td><td class="${p.done ? 'done' : ''}">${esc(p.title)}</td><td class="mute">${p.target_minutes ? p.target_minutes + '분' : ''}</td>
+    <td><button class="ghost" onclick="delRow('cp_study_plans','${p.id}')">✕</button></td></tr>`).join('') || '<tr><td class="mute">이 날짜의 계획이 없어요</td></tr>'}</table></div>`;
+}
+async function addExam() {
+  const title = $('xt').value.trim(), exam_date = $('xd').value;
+  if (!title || !exam_date) return toast('시험 이름과 날짜를 입력하세요');
+  const { error } = await sb.from('cp_study_exams').insert({ title, exam_date }); error ? toast(error.message) : renderStudy();
+}
+async function addPlan() {
+  const title = $('pt').value.trim(), subject = $('ps').value.trim() || '일반';
+  if (!title) return toast('할 공부를 입력하세요');
+  lsSet('lastSubject', subject);
+  const { error } = await sb.from('cp_study_plans').insert({ plan_date: ST.date, subject, title, target_minutes: Math.max(0, Math.min(1440, Math.round(+$('pm').value || 0))) });
+  error ? toast(error.message) : renderStudy();
+}
+async function togglePlan(id, done) { const { error } = await sb.from('cp_study_plans').update({ done }).eq('id', id); error ? toast(error.message) : renderStudy(); }
+async function delRow(table, id) { const { error } = await sb.from(table).delete().eq('id', id); error ? toast(error.message) : renderStudy(); }
+
+/* 달성률 탭: 최근 7일 + 과목별 */
+function tabRate() {
+  const days = [...Array(7)].map((_, i) => addDays(today(), i - 6)), wk = ST.plans.filter(p => p.plan_date >= days[0] && p.plan_date <= days[6]), r = rateOf(wk);
+  const subj = [...new Set(wk.map(p => p.subject))].map(s => [s, rateOf(wk.filter(p => p.subject === s))]);
+  $('stab').innerHTML = `<div class="grid"><div class="card kpi"><b>${r.pct}%</b><span>최근 7일 달성률 (${r.done}/${r.total})</span></div>
+    <div class="card kpi"><b>${r.mins}분</b><span>완료한 계획 시간 / 목표 ${r.minsTotal}분</span></div>
+    <div class="card kpi"><b>${ST.files.filter(f => f.study_date >= days[0]).length}개</b><span>최근 7일 업로드 파일</span></div></div>
+    <div class="card"><h3>일별 달성률</h3><canvas id="rc"></canvas></div>
+    <div class="card"><h3>과목별 (최근 7일)</h3>${subj.map(([s, x]) => `<div style="margin-bottom:8px">${esc(s)} — ${x.pct}% (${x.done}/${x.total})${meter(x.pct)}</div>`).join('') || '<span class="mute">기록이 없어요</span>'}</div>`;
+  chart('rc', { type: 'bar', data: { labels: days.map(d => d.slice(5)), datasets: [{ label: '달성률 %', data: days.map(d => rateOf(ST.plans.filter(p => p.plan_date === d)).pct), backgroundColor: '#4f63e0' }] }, options: { scales: { y: { min: 0, max: 100 } } } });
+}
+
+/* 업로드 탭: 텍스트를 브라우저에서 추출해 저장 (원본 파일은 저장하지 않음) */
+const MAX_BYTES = 20 * 1024 * 1024, MAX_CHARS = 200000;
+function tabUpload() {
+  const label = f => f.extract_status === 'unsupported' ? '<span class="mute">지원하지 않는 형식(요약 제외)</span>' : f.extract_status === 'empty' ? '<span class="warn" style="padding:0 6px;margin:0">텍스트 없음(스캔본?)</span>'
+    : f.summary_status === 'done' ? '<span class="pos">요약 완료</span>' : f.summary_status === 'failed' ? '<span class="neg">요약 실패</span>' : '<span class="mute">내일 아침 요약 예정</span>';
+  $('stab').innerHTML = `<div class="card"><p class="mute" style="margin-top:0;font-size:13px">오늘 공부한 자료(<b>.txt · .md · 텍스트가 있는 .pdf</b>)를 올리면, 다음날 아침 에이전트가 무엇을 공부했는지 정리하고 중요한 내용을 표시해요.
+    글자만 추출해 저장하며 <b>원본 파일은 저장하지 않아요</b>. 이미지·스캔 PDF·Word는 아직 요약할 수 없어요.</p>
+    <div class="row"><label style="margin:0">공부한 날짜</label><input id="ud" type="date" value="${today()}"><input id="uf" type="file" multiple accept=".txt,.md,.pdf,text/plain,application/pdf"><button class="pri" onclick="uploadFiles()">업로드</button></div><div id="umsg" class="mute" style="margin-top:6px"></div></div>
+    <div class="card"><table><tr><th>날짜</th><th>파일</th><th>크기</th><th>상태</th><th></th></tr>
+    ${ST.files.map(f => `<tr><td>${esc(f.study_date)}</td><td>${esc(f.file_name)}</td><td class="mute">${Math.round((f.size_bytes || 0) / 1024)}KB</td><td>${label(f)}</td><td><button class="ghost" onclick="delRow('cp_study_files','${f.id}')">✕</button></td></tr>`).join('') || '<tr><td colspan="5" class="mute">아직 업로드한 파일이 없어요</td></tr>'}</table></div>`;
+}
+async function extractText(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.txt') || name.endsWith('.md') || file.type.startsWith('text/')) return { text: await file.text(), status: 'ok' };
+  if (name.endsWith('.pdf') || file.type === 'application/pdf') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    let out = '';
+    for (let i = 1; i <= Math.min(pdf.numPages, 120) && out.length < MAX_CHARS; i++) {
+      const c = await (await pdf.getPage(i)).getTextContent();
+      out += `\n[p.${i}] ` + c.items.map(x => x.str).join(' ');
+    }
+    return { text: out, status: 'ok' };
+  }
+  return { text: '', status: 'unsupported' };
+}
+async function uploadFiles() {
+  const files = [...$('uf').files], date = $('ud').value || today(), msg = $('umsg');
+  if (!files.length) return toast('파일을 선택하세요');
+  if (ST.busy) return; ST.busy = true;
+  for (const f of files) {
+    msg.textContent = `처리 중: ${f.name}`;
+    if (f.size > MAX_BYTES) { toast(`${f.name}: 20MB를 넘어 건너뜁니다`); continue; }
+    if (ST.files.some(x => x.file_name === f.name && x.study_date === date && x.size_bytes === f.size)) { toast(`${f.name}: 이미 올린 파일이에요`); continue; }
+    try {
+      let { text, status } = await extractText(f);
+      const raw = text.replace(/\u0000/g, '').trim();
+      if (raw.length > MAX_CHARS) msg.textContent = `${f.name}: 앞 20만 자만 저장돼요`;
+      text = raw.slice(0, MAX_CHARS).replace(/[\uD800-\uDBFF]$/, '');
+      if (status === 'ok' && text.length < 20) status = 'empty';
+      const { error } = await sb.from('cp_study_files').insert({ study_date: date, file_name: f.name.slice(0, 200), mime: f.type || null, size_bytes: f.size,
+        content_text: status === 'ok' ? text : null, extract_status: status, summary_status: status === 'ok' ? 'pending' : 'skipped' });
+      if (error) throw error;
+    } catch (e) { toast(`${f.name}: ${e.message || e}`); }
+  }
+  ST.busy = false; renderStudy();
+}
+
+/* 아침 요약 탭 */
+function digestHtml(d) {
+  const kp = [...(d.key_points || [])].sort((a, b) => (b.importance || 0) - (a.importance || 0));
+  return `<div class="mute" style="font-size:12px">${esc(d.study_date)} 공부 내용</div><div class="pre" style="margin:4px 0 8px">${esc(d.summary)}</div>
+    <div>${kp.map(k => { const n = Math.max(1, Math.min(3, +k.importance || 1)), t = esc(k.text);
+      return `<div style="margin:3px 0">${'⭐'.repeat(n)} ${n === 3 ? `<mark>${t}</mark>` : n === 2 ? `<b>${t}</b>` : t} ${k.subject ? `<span class="tag mute">${esc(k.subject)}</span>` : ''}</div>`; }).join('') || '<span class="mute">표시할 핵심 항목이 없어요</span>'}</div>`;
+}
+function tabDigest() {
+  const pending = ST.files.filter(f => f.summary_status === 'pending').length;
+  $('stab').innerHTML = (pending ? `<div class="notice">요약 대기 중인 파일이 ${pending}개 있어요. 다음날 아침 에이전트가 정리해 줍니다.</div>` : '') +
+    (ST.digests.map(d => `<div class="card">${digestHtml(d)}</div>`).join('') || '<div class="card mute">아직 요약이 없어요. 파일을 올리고 다음날 아침에 확인하세요.</div>') +
+    `<div class="card"><h3>🧠 에이전트가 학습한 주제 (자주 나온 순)</h3>${ST.topics.slice(0, 20).map(t => `<span class="chip">${esc(t.subject)} · ${esc(t.topic)} ×${t.mentions}</span>`).join('') || '<span class="mute">요약이 쌓이면 자주 공부한 주제가 여기에 모여요</span>'}</div>`;
+}
+
+/* 주간 문서 탭 + 다운로드 여부 알림 */
+function tabWeekly() {
+  const ws = monday(today());
+  $('stab').innerHTML = `<div class="card"><div class="row" style="justify-content:space-between"><div><h3 style="margin:0">이번 주 (${ws} ~) 문서</h3><span class="mute" style="font-size:13px">계획·달성률·아침 요약·자주 나온 주제를 모아 만들어요.</span></div>
+    <div class="row"><button class="pri" onclick="buildWeekly('${ws}')">이번 주 문서 만들기</button><button onclick="askNotifyPermission()">🔔 브라우저 알림 허용</button></div></div></div>
+    ${ST.weekly.map(w => `<div class="card"><div class="row" style="justify-content:space-between"><b>${esc(w.week_start)} 주</b>
+      <span><span class="tag mute">${({ ready: '다운로드 대기', downloaded: '다운로드함', dismissed: '확인함', declined: '받지 않음' })[w.status]}</span>
+      <button onclick="downloadWeekly('${w.id}')">⬇ 다운로드(.md)</button> <button class="ghost" onclick="delRow('cp_study_weekly','${w.id}')">✕</button></span></div>
+      <details><summary class="mute">미리보기</summary><div class="pre" style="font-size:13px">${esc(w.doc_md)}</div></details></div>`).join('') || '<div class="card mute">아직 주간 문서가 없어요</div>'}`;
+}
+function weeklyMarkdown(ws) {
+  const we = addDays(ws, 6), ps = ST.plans.filter(p => p.plan_date >= ws && p.plan_date <= we), r = rateOf(ps);
+  const subj = [...new Set(ps.map(p => p.subject))].map(s => { const x = rateOf(ps.filter(p => p.subject === s)); return `- ${s}: ${x.pct}% (${x.done}/${x.total}, ${x.mins}분)`; });
+  const ds = ST.digests.filter(d => d.study_date >= ws && d.study_date <= we).sort((a, b) => a.study_date.localeCompare(b.study_date));
+  const files = ST.files.filter(f => f.study_date >= ws && f.study_date <= we);
+  const must = ds.flatMap(d => (d.key_points || []).filter(k => k.importance >= 3).map(k => `- ⭐⭐⭐ ${k.text}${k.subject ? ` (${k.subject})` : ''} — ${d.study_date}`));
+  const exams = ST.exams.filter(x => diffDays(x.exam_date, today()) >= 0).map(x => `- ${x.title}: ${ddayText(x.exam_date)} (${x.exam_date})`);
+  return [`# 주간 학습 문서 (${ws} ~ ${we})`, '', '## 시험 D-day', exams.join('\n') || '- 등록된 시험 없음', '',
+    `## 달성률\n- 전체: **${r.pct}%** (완료 ${r.done}/${r.total}, 완료한 계획 시간 ${r.mins}분 / 목표 ${r.minsTotal}분)`, subj.join('\n'), '',
+    '## 꼭 복습할 내용 (중요도 ⭐⭐⭐)', must.join('\n') || '- 없음', '',
+    '## 날짜별 공부 내용', ...ds.map(d => `### ${d.study_date}\n${d.summary}\n${(d.key_points || []).map(k => `- ${'⭐'.repeat(Math.max(1, Math.min(3, +k.importance || 1)))} ${k.text}`).join('\n')}`),
+    ds.length ? '' : '- 이번 주 요약이 아직 없어요', '## 업로드한 자료', files.map(f => `- ${f.study_date} ${f.file_name}`).join('\n') || '- 없음', '',
+    '## 자주 공부한 주제', ST.topics.slice(0, 10).map(t => `- ${t.subject} · ${t.topic} (${t.mentions}회)`).join('\n') || '- 아직 없음', ''].join('\n');
+}
+async function buildWeekly(ws) {
+  const { error } = await sb.from('cp_study_weekly').upsert({ week_start: ws, doc_md: weeklyMarkdown(ws) }, { onConflict: 'user_id,week_start' });
+  error ? toast(error.message) : renderStudy();
+}
+async function markWeekly(id, status) { const { error } = await sb.from('cp_study_weekly').update({ status }).eq('id', id); error ? toast(error.message) : renderStudy(); }
+async function downloadWeekly(id) {
+  const w = ST.weekly.find(x => x.id === id); if (!w) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([w.doc_md], { type: 'text/markdown;charset=utf-8' })); a.download = `주간학습문서-${w.week_start}.md`; a.click();
+  if (w.status === 'ready') await markWeekly(id, 'downloaded');
+}
+function askNotifyPermission() { if (!('Notification' in window)) return toast('이 브라우저는 알림을 지원하지 않아요'); Notification.requestPermission().then(p => toast(p === 'granted' ? '알림이 켜졌어요' : '알림이 허용되지 않았어요')); }
+function maybeNotify() {
+  const r = ST.weekly.find(x => x.status === 'ready');
+  if (r && !ST.notified && 'Notification' in window && Notification.permission === 'granted') {
+    ST.notified = true; new Notification('📄 주간 학습 문서가 준비됐어요', { body: `${r.week_start} 주 문서를 다운받으시겠어요? 스터디 플래너 > 주간 문서` });
+  }
+}
+</script>
+</body>
+</html>
