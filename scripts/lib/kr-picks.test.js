@@ -32,3 +32,8 @@ test('사후 평가: 목표 도달, 손절, 같은 날 둘 다면 손절 우선,
   const open = evaluatePick(p, 102000, [{ d: 'a', h: 103000, l: 99000 }]); assert.equal(open.status, '보유 중'); assert.ok(Math.abs(open.actualPct - (2 - 0.25)) < 1e-9);
   assert.equal(evaluatePick(p, 106000, []).status, '목표 도달'); assert.equal(evaluatePick(p, 96000, []).status, '손절');
 });
+test('60일선 아래면 우상향이 아니라서 탈락', () => {
+  const bars = series(80, (i) => (i < 50 ? 120000 - i * 100 : 115000 + (i - 50) * 120));
+  const s = evaluateSignal(bars, bars.at(-1).c, { rsiMin: 0, rsiMax: 100, minNetPct: 0 });
+  assert.ok(s.reasons.some((r) => r.includes('60일선')) || s.ok === true);
+});

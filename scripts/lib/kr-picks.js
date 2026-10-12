@@ -40,10 +40,11 @@ export function evaluateSignal(bars, price, opt = {}) {
   const o = { ...DEFAULTS, ...opt }, reasons = [];
   if (bars.length < 40) return { ok: false, reasons: ['일봉이 40개 미만'] };
   if (!(price > 0)) return { ok: false, reasons: ['현재가 없음'] };
-  const c = bars.map((b) => b.c), ma20 = sma(c, 20), ma20Prev = sma(c, 20, c.length - 5), r = rsi(c), a = atr(bars);
+  const c = bars.map((b) => b.c), ma20 = sma(c, 20), ma20Prev = sma(c, 20, c.length - 5), ma60 = sma(c, 60), r = rsi(c), a = atr(bars);
   const volAvg = sma(bars.map((b) => b.v), 20, bars.length - 1), volNow = bars.at(-1).v;
   if (price <= ma20) reasons.push('20일선 아래');
   if (!(ma20 > ma20Prev)) reasons.push('20일선이 오르는 중이 아님');
+  if (ma60 != null && !(ma20 > ma60)) reasons.push('20일선이 60일선 아래(우상향 아님)');
   if (r == null || r < o.rsiMin || r > o.rsiMax) reasons.push(`RSI ${r == null ? '없음' : r.toFixed(0)}가 ${o.rsiMin}~${o.rsiMax} 밖`);
   if (volAvg && volNow < volAvg * o.volMult) reasons.push('거래량이 20일 평균보다 적음');
   const entry = roundTick(price, 'down'), stop = roundTick(entry - o.stopAtr * a, 'down'), target = roundTick(entry + o.targetAtr * a, 'up');

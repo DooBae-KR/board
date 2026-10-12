@@ -1,0 +1,44 @@
+# 평일 아침 07:30(KST)에 코스피·코스닥 우상향 종목을 골라 매수가·예상 매도가를 대시보드에 올리고,
+# 이전 추천의 예상 수익 vs 실제 수익을 갱신한다. 시세 조회만 하고 주문은 내지 않는다.
+# Secrets: KIS_APP_KEY, KIS_APP_SECRET (한국투자증권 Open API), HARNESS_API_URL, HARNESS_API_TOKEN
+# 변수(Variables): KIS_ENV = demo(기본) 또는 real
+name: kr-picks
+on:
+  schedule:
+    - cron: '30 22 * * 0-4'   # UTC 일~목 22:30 = KST 월~금 07:30
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency: kr-picks
+jobs:
+  picks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+      KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+      KIS_ENV: ${{ vars.KIS_ENV || 'demo' }}
+      HARNESS_API_URL: ${{ secrets.HARNESS_API_URL }}
+      HARNESS_API_TOKEN: ${{ secrets.HARNESS_API_TOKEN }}
+      KR_PICKS_FILE: .kr-picks.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      # 추천 기록은 실행 사이에 캐시로 이어 받는다 (실행마다 새 키로 저장, 가장 최근 것을 복원)
+      - uses: actions/cache/restore@v4
+        with:
+          path: .kr-picks.json
+          key: kr-picks-none
+          restore-keys: kr-picks-
+      - name: 오늘의 추천
+        shell: bash
+        run: node scripts/kr-picks.js pick --market both --size 30 --top 3 --report | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: 이전 추천 평가 (예상 vs 실제)
+        shell: bash
+        run: node scripts/kr-picks.js eval --report | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .kr-picks.json
+          key: kr-picks-${{ github.run_id }}
