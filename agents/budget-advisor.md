@@ -8,7 +8,7 @@ substrate_template: harness-agent
 motions: [idle, working, walk, done, blocked]
 color: "#C9873E"
 model: claude-sonnet-5-5
-tools: [Read, Bash, mcp__Supabase__execute_sql]
+tools: [Read, Bash]
 example: false
 ---
 # 예산도우미 · 지출 분류·절감 시나리오·전후 통계

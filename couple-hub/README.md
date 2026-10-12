@@ -10,7 +10,9 @@
 | `agent/app.py` | 미장 분석 API (FastAPI + yfinance + gs-quant 지표). 테스트: `python test_app.py` |
 | `agent/study-digest-job.md` | 스터디 아침 요약·주간 문서 작업 지침 (예약 실행용) |
 | `../supabase/migrations/20261012083000_couple_hub.sql` | `cp_` 테이블·RLS·함수 (여러 번 실행해도 안전) |
-| `../agents/{stock-analyst,study-digest,web-qa}.md` | 하네스 에이전트 정의 (부서: 우리 허브) |
+| `../agents/{stock-analyst,study-digest,web-qa,budget-advisor}.md` | 하네스 에이전트 정의 (부서: 우리 허브) |
+
+`budget-advisor`(예산도우미)는 월별 거래를 정산·식비·생필품·세탁으로 분류하고, 절감 시나리오(전 → 후)와 실제 통계를 만든다. 분류 기준은 에이전트 정의 본문에 있다. 거래 내역은 개인 금융 정보라서 저장소에 올리지 않는다.
 
 ## 실행
 1. 마이그레이션을 Supabase에 적용합니다. 운영 DB에는 이미 같은 내용이 적용돼 있습니다.
