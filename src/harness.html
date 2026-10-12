@@ -14,7 +14,7 @@
   --bg:#F2F0FA; --surface:#FFFFFF; --soft:#E8E4F8; --line:#D9D3F1;
   --ink:#2C2852; --muted:#6E6896; --accent:#6F62D2; --accent-ink:#FFFFFF;
   --pink:#EE86AE; --mint:#5DBFA4; --peach:#F0A267; --sky:#6AA8E8; --lilac:#B08AE0;
-  --good:#2F9E77; --warn:#C98318; --bad:#D4506A;
+  --good:#2F9E77; --warn:#C98318; --bad:#D4506A; --loss:#3E78C8;
   --shadow:0 1px 0 #D9D3F1, 0 6px 18px -10px rgba(60,50,130,.28);
   --f-display:"Jua","Gowun Dodum",system-ui,sans-serif;
   --f-body:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
@@ -24,13 +24,13 @@
   --bg:#15142A; --surface:#1F1D3A; --soft:#2A2750; --line:#36325F;
   --ink:#EDEBFC; --muted:#A39FCB; --accent:#A79BFF; --accent-ink:#15142A;
   --pink:#F49ABE; --mint:#72D3B8; --peach:#F5B07E; --sky:#82B9F0; --lilac:#C3A2EE;
-  --good:#5ACB9E; --warn:#E6AE4E; --bad:#F07A92;
+  --good:#5ACB9E; --warn:#E6AE4E; --bad:#F07A92; --loss:#7FB0F2;
   --shadow:0 1px 0 #2C2950, 0 10px 24px -14px rgba(0,0,0,.6); color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#15142A; --surface:#1F1D3A; --soft:#2A2750; --line:#36325F;
   --ink:#EDEBFC; --muted:#A39FCB; --accent:#A79BFF; --accent-ink:#15142A;
   --pink:#F49ABE; --mint:#72D3B8; --peach:#F5B07E; --sky:#82B9F0; --lilac:#C3A2EE;
-  --good:#5ACB9E; --warn:#E6AE4E; --bad:#F07A92;
+  --good:#5ACB9E; --warn:#E6AE4E; --bad:#F07A92; --loss:#7FB0F2;
   --shadow:0 1px 0 #2C2950, 0 10px 24px -14px rgba(0,0,0,.6); color-scheme:dark}
 
 /* 캐릭터 테마: 기본(아이유)은 위의 라벤더. 세훈이는 블루 톤으로 바꾼다 */
@@ -309,6 +309,19 @@ h1{font-family:var(--f-display);font-weight:400;font-size:30px;margin:2px 0 0;li
 .sim{display:grid;gap:8px}
 .sim .pick{width:100%}
 
+
+.pl.up{color:var(--bad)}.pl.down{color:var(--loss)}.pl{font-variant-numeric:tabular-nums}
+.dv{position:relative;height:10px;background:var(--soft);border-radius:4px;overflow:hidden}
+.dv::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--line)}
+.dv i{position:absolute;top:0;bottom:0}.dv i.up{left:50%;background:var(--bad);border-radius:0 4px 4px 0}.dv i.down{right:50%;background:var(--loss);border-radius:4px 0 0 4px}
+.sk-row{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(70px,1fr) minmax(90px,1fr) minmax(70px,.7fr) auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+.sk-row.sec{grid-template-columns:minmax(70px,.9fr) minmax(0,2fr) minmax(90px,1fr) minmax(70px,.7fr) minmax(40px,auto)}
+.sk-row small{display:block;color:var(--muted);font-size:12px}
+.sk-row .r{text-align:right}
+.sk-row:first-of-type{border-top:0}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fgrid .wide{grid-column:1/-1}
+@media (max-width:640px){.sk-row,.sk-row.sec{grid-template-columns:minmax(0,1fr) auto}.sk-row .x{grid-column:1/-1}.fgrid{grid-template-columns:1fr}}
 .bsel{display:flex;align-items:center;gap:8px}
 .bsel select{height:42px;border:1.5px solid var(--line);background:var(--surface);border-radius:12px;padding:0 36px 0 14px;font-family:var(--f-display);font-size:16px}
 .cmp{display:grid;gap:14px}
@@ -629,8 +642,96 @@ function homeHTML() {
   return `<div class="head"><div><div class="eyebrow">${new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}</div><h1>내 현황</h1></div>
     <div class="pulse" role="group" aria-label="에이전트 상태 바로가기"><span class="empty">에이전트</span>${Object.keys(AG).map(k => `<button type="button" data-act="agents-go" data-v="${k}"><i style="background:${AG[k].c}"></i>${AG[k].l} ${g[k].length}</button>`).join('')}</div></div>
   ${panel('p-budget', '가계부', '예산도우미가 매월 갱신해요 (정산 제외)', budget.length ? `<div class="grid">${budget.map(widgetCard).join('')}</div>` : noData('가계부 위젯이 아직 없어요. 예산도우미(budget-advisor)가 월간 점검을 마치면 지출·분류·절감 가능액이 여기에 나타나요.'), '<button type="button" class="ghost" data-nav="budget" style="margin-left:auto">자세히 보기</button>')}
+  ${panel('p-stocks', '나의 주식수익률', '내가 넣은 매수·매도 기준 (세전)', stocksPanelBody(), (state.data.holdings || []).length ? '<button type="button" class="ghost" data-nav="stocks" style="margin-left:auto">자세히</button>' : '')}
   ${panel('p-study', '나의 학습정보', '스터디 플래너 기준', study.length ? `<div class="grid">${study.map(widgetCard).join('')}</div>` : `<div class="nodata"><img src="${sprite('book')}" alt=""><p><b>연결 전이에요.</b> 스터디요약(study-digest)이 '학습 현황' 위젯(이번 주 달성률, 가까운 D-day 등)을 보내면 여기에 나타나요. 지금은 우리 허브 앱의 스터디 화면에서 볼 수 있어요.</p></div>`)}
   ${panel('p-sns', '유튜브 · 인스타그램', '구독자·팔로워와 활동지수', `<div class="grid">${snsCard('yt', '유튜브', 'YOUTUBE', yt, '구독자 수는 YouTube Data API 키가 있어야 가져올 수 있어요. 키는 서버 환경변수에만 두고, 에이전트가 \'유튜브 현황\' 위젯(구독자, 활동지수)을 보내면 여기에 나타나요.', '내 유튜브 채널의 구독자 수와 최근 업로드·조회 활동으로 활동지수(0~100)를 매일 계산해서 \'유튜브 현황\' 위젯(kpi: 구독자, 활동지수)으로 보고한다.')}${snsCard('ig', '인스타그램', 'INSTAGRAM', ig, '팔로워 수는 인스타그램 Graph API 토큰으로 가져와요. 에이전트가 \'인스타 현황\' 위젯(팔로워, 활동지수)을 보내면 여기에 나타나요.', '내 인스타그램 계정의 팔로워 수와 최근 게시물·참여 활동으로 활동지수(0~100)를 매일 계산해서 \'인스타 현황\' 위젯(kpi: 팔로워, 활동지수)으로 보고한다.')}</div>`)}`;
+}
+
+/* ---------- 나의 주식수익률: 사람이 넣은 거래(harness_holdings)로 계산한다. 세전, 수수료·세금 미반영 ---------- */
+const SECTOR_HINTS = ['반도체', '2차전지', '바이오', '자동차', '금융', 'IT서비스', '화학', '철강', '건설', '엔터', '에너지', '유통', '게임'];
+const pl = n => `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmt(Math.abs(Math.round(n)))}`;
+const plRate = r => `${r > 0 ? '▲ ' : r < 0 ? '▼ ' : ''}${r > 0 ? '+' : r < 0 ? '−' : ''}${Math.abs(r).toFixed(1)}%`;
+const plCls = n => (n > 0 ? 'up' : n < 0 ? 'down' : '');
+function stockRows() {
+  return (state.data.holdings || []).map(h => {
+    const cost = h.qty * h.buy_price, closed = h.sell_price != null, px = closed ? h.sell_price : h.current_price;
+    const val = px == null ? null : h.qty * px, pnl = val == null ? null : val - cost;
+    return { ...h, cost, closed, val, pnl, rate: pnl == null ? null : pnl / cost * 100 };
+  });
+}
+const stockAgg = rs => { const cost = rs.reduce((t, r) => t + r.cost, 0), pnl = rs.reduce((t, r) => t + r.pnl, 0); return { n: rs.length, cost, pnl, rate: cost ? pnl / cost * 100 : 0 }; };
+function stockSummary() {
+  const rows = stockRows(), done = rows.filter(r => r.closed), held = rows.filter(r => !r.closed && r.pnl != null);
+  const re = stockAgg(done), ev = stockAgg(held), wins = done.filter(r => r.pnl > 0).length;
+  return { rows, done, held, re, ev, wins, unpriced: rows.filter(r => !r.closed && r.pnl == null).length };
+}
+function stockKpis(m) {
+  const k = (label, body, sub = '') => `<div class="kpi"><span>${label}</span><strong>${body}</strong>${sub}</div>`;
+  return `<div class="kpis">
+    ${k('실현 수익률', m.done.length ? `<span class="pl ${plCls(m.re.pnl)}">${plRate(m.re.rate)}</span>` : '<small>매도 전</small>', m.done.length ? `<span class="delta">매도 ${m.done.length}건 · 투자금 ${won(m.re.cost)}</span>` : '')}
+    ${k('실현손익', m.done.length ? `<span class="pl ${plCls(m.re.pnl)}">${pl(m.re.pnl)}<small>원</small></span>` : '<small>-</small>')}
+    ${k('보유 평가수익률', m.held.length ? `<span class="pl ${plCls(m.ev.pnl)}">${plRate(m.ev.rate)}</span>` : '<small>현재가 입력 전</small>', m.held.length ? `<span class="delta">평가손익 <span class="pl ${plCls(m.ev.pnl)}">${pl(m.ev.pnl)}원</span></span>` : '')}
+    ${k('승률', m.done.length ? `${Math.round(m.wins / m.done.length * 100)}<small>% (${m.wins}/${m.done.length})</small>` : '<small>-</small>')}
+    ${k('거래', `${m.rows.length}<small>건</small>`, m.unpriced ? `<span class="delta">현재가 없는 보유 ${m.unpriced}건은 제외</span>` : '')}</div>`;
+}
+function stocksPanelBody() {
+  const m = stockSummary();
+  if (!m.rows.length) return `<div class="nodata"><img src="${sprite('laptop')}" alt=""><p><b>아직 입력한 거래가 없어요.</b> 종목과 매수·매도 가격을 넣으면 수익률이 계산되고, 자세히에서 어떤 분야가 수익을 냈는지 볼 수 있어요.</p><button type="button" class="primary" data-act="stock-add">+ 거래 추가</button></div>`;
+  return `<div class="w full">${stockKpis(m)}</div>`;
+}
+function sectorGroups(m) {
+  const by = new Map();
+  for (const r of m.rows) { if (!by.has(r.sector)) by.set(r.sector, []); by.get(r.sector).push(r); }
+  return [...by.entries()].map(([name, rs]) => { const ev = rs.filter(r => r.pnl != null); return { name, rs: rs.sort((a, b) => (b.pnl ?? -Infinity) - (a.pnl ?? -Infinity)), ...stockAgg(ev), ev: ev.length }; })
+    .sort((a, b) => (b.ev ? b.pnl : -Infinity) - (a.ev ? a.pnl : -Infinity));
+}
+const stockState = r => (r.closed ? '실현' : r.pnl != null ? '평가' : '현재가 없음');
+function stocksHTML() {
+  const m = stockSummary(), head = `<div class="head"><div><div class="eyebrow">Stocks</div><h1>나의 주식수익률</h1></div><div class="actions"><button class="primary" type="button" data-act="stock-add">+ 거래 추가</button></div></div>`;
+  if (!m.rows.length) return head + stocksPanelBody();
+  const gs = sectorGroups(m), mx = Math.max(1, ...gs.filter(g => g.ev).map(g => Math.abs(g.pnl)));
+  const secRows = gs.map(g => g.ev ? `<div class="sk-row sec"><span>${esc(g.name)}<small>${g.ev}종목 · 투자금 ${won(g.cost)}</small></span><div class="dv" role="img" aria-label="${esc(g.name)} 손익 ${pl(g.pnl)}원"><i class="${plCls(g.pnl)}" style="width:${Math.abs(g.pnl) / mx * 50}%"></i></div><span class="r pl ${plCls(g.pnl)}">${pl(g.pnl)}원</span><span class="r pl ${plCls(g.pnl)}">${plRate(g.rate)}</span><span></span></div>`
+    : `<div class="sk-row sec"><span>${esc(g.name)}<small>${g.rs.length}종목</small></span><span class="hint2 x" style="grid-column:2/-1">현재가를 넣으면 계산돼요</span></div>`).join('');
+  const stockRowsHTML = g => g.rs.map(r => `<div class="sk-row"><span>${esc(r.name)}${r.code ? ` <small style="display:inline">${esc(r.code)}</small>` : ''}<small>${stockState(r)} · ${fmt(r.qty)}주 · 매수 ${fmt(r.buy_price)}${r.closed ? ` → 매도 ${fmt(r.sell_price)}` : r.current_price != null ? ` → 현재 ${fmt(r.current_price)}` : ''}</small></span>
+    <span class="r x">${esc(r.buy_date)}${r.closed ? `<small>~ ${esc(r.sell_date)}</small>` : ''}</span>
+    <span class="r pl ${r.pnl == null ? '' : plCls(r.pnl)}">${r.pnl == null ? '-' : pl(r.pnl) + '원'}</span><span class="r pl ${r.pnl == null ? '' : plCls(r.pnl)}">${r.pnl == null ? '' : plRate(r.rate)}</span>
+    <button type="button" class="wbtn" data-act="stock-edit" data-hid="${esc(r.id)}" aria-label="${esc(r.name)} 거래 수정">수정</button></div>`).join('');
+  return head + `<div class="w full"><div class="wh"><h3>전체</h3><span class="wt">세전 · 수수료·세금 미반영</span></div>${stockKpis(m)}</div>
+  <div class="w full"><div class="wh"><h3>어떤 분야가 벌었나</h3><span class="wt">SECTOR</span></div>${secRows}<p class="hint2" style="margin-top:8px">실현(매도 완료)과 평가(현재가 기준)를 함께 더한 손익이에요. 분야는 직접 적은 이름 기준이에요.</p></div>
+  ${gs.map(g => `<div class="w full"><div class="wh"><h3>${esc(g.name)}</h3>${g.ev ? `<span class="wt pl ${plCls(g.pnl)}">${pl(g.pnl)}원 · ${plRate(g.rate)}</span>` : ''}</div>${stockRowsHTML(g)}</div>`).join('')}`;
+}
+function stockModal(h) {
+  const v = k => (h && h[k] != null ? esc(h[k]) : ''), today = new Date().toISOString().slice(0, 10);
+  openModal(`<h2>${h ? '거래 수정' : '거래 추가'}</h2>
+    <datalist id="sk-sec">${[...new Set([...SECTOR_HINTS, ...(state.data.holdings || []).map(x => x.sector)])].map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    <div class="fgrid">
+      <div class="field"><label for="k-name">종목명</label><input id="k-name" maxlength="40" value="${v('name')}" placeholder="예: 삼성전자"></div>
+      <div class="field"><label for="k-code">종목코드 (선택)</label><input id="k-code" maxlength="6" inputmode="text" value="${v('code')}" placeholder="005930"></div>
+      <div class="field wide"><label for="k-sector">분야</label><input id="k-sector" list="sk-sec" maxlength="20" value="${h ? v('sector') : ''}" placeholder="예: 반도체 (비우면 미분류)"></div>
+      <div class="field"><label for="k-qty">수량(주)</label><input id="k-qty" inputmode="numeric" value="${v('qty')}"></div>
+      <div class="field"><label for="k-bp">매수가(원)</label><input id="k-bp" inputmode="decimal" value="${v('buy_price')}"></div>
+      <div class="field wide"><label for="k-bd">매수일</label><input id="k-bd" type="date" value="${h ? v('buy_date') : today}"></div>
+      <div class="field"><label for="k-sp">매도가(원, 팔았다면)</label><input id="k-sp" inputmode="decimal" value="${v('sell_price')}"></div>
+      <div class="field"><label for="k-sd">매도일</label><input id="k-sd" type="date" value="${v('sell_date')}"></div>
+      <div class="field wide"><label for="k-cp">현재가(원, 보유 중일 때 평가용)</label><input id="k-cp" inputmode="decimal" value="${v('current_price')}"></div>
+    </div>
+    <p class="hint2">매도가와 매도일은 함께 넣어요. 팔지 않았다면 비워 두고 현재가를 넣으면 평가수익률이 계산돼요. 세전 기준이에요.</p>
+    <p class="err" hidden></p>
+    <div class="mfoot">${h ? '<button class="danger" type="button" id="k-del">삭제</button>' : ''}<button class="ghost" type="button" data-close>취소</button><button class="primary" type="button" id="k-ok">${h ? '저장' : '추가'}</button></div>`,
+  root => {
+    const val = id => $(id).value.trim();
+    $('k-ok').addEventListener('click', async () => {
+      const body = { name: val('k-name'), code: val('k-code'), sector: val('k-sector'), qty: val('k-qty'), buy_price: val('k-bp'), buy_date: val('k-bd'), sell_price: val('k-sp'), sell_date: val('k-sd'), current_price: val('k-cp') };
+      $('k-ok').disabled = true;
+      try { await api(h ? 'PATCH' : 'POST', '/api/harness/holdings' + (h ? '/' + h.id : ''), body); closeModal(); state.etag = null; await poll(); toast(h ? '저장했어요' : '거래를 추가했어요'); }
+      catch (e) { showErr(root, e.message); $('k-ok').disabled = false; }
+    });
+    $('k-del')?.addEventListener('click', async () => {
+      if (!confirm(`${h.name} 거래를 삭제할까요?`)) return;
+      try { await api('DELETE', '/api/harness/holdings/' + h.id); closeModal(); state.etag = null; await poll(); toast('삭제했어요'); }
+      catch (e) { showErr(root, e.message); }
+    });
+  });
 }
 /* ---------- 가계부 상세: 월별 '가계부 상세 YYYY-MM' 위젯(data.detail)을 년월 콤보박스로 골라 본다. 거래 내용은 없고 분류별 합계·건수만 있다 ---------- */
 const budgetMonths = () => state.data.widgets.map(w => { const m = /^가계부 상세 (\d{4}-\d{2})$/.exec(w.title); return m && w.data?.detail ? { ym: m[1], d: w.data.detail, w } : null; }).filter(Boolean).sort((a, b) => b.ym.localeCompare(a.ym));
@@ -811,7 +912,7 @@ function renderMenu() {
   const g = groupAgents(), cur = id => (state.active === id ? 'aria-current="page"' : '');
   const item = (id, n, c, k, extra = '') => `<li><div class="row"><span class="caret none"></span><button type="button" class="mi" data-nav="${id}" ${cur(id)}><span class="dot" style="background:${c}"></span><span class="nm">${n}</span>${k === '' ? '' : `<span class="cnt">${k}</span>`}</button></div>${extra}</li>`;
   const sub = `<ul>${Object.keys(AG).map(k => `<li><button type="button" class="leaf" data-act="agents-go" data-v="${k}"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;flex:none;background:${AG[k].c}"></span><span class="ln">${AG[k].l}</span><span class="pct" style="color:var(--muted)">${g[k].length}</span></button></li>`).join('')}</ul>`;
-  $('menu').innerHTML = item('overview', '내 현황', 'var(--ink)', '') + item('budget', '가계부', 'var(--peach)', budgetMonths().length ? budgetMonths().length + '개월' : '') + item('agents', '에이전트', 'var(--pink)', state.data.agents.length, sub)
+  $('menu').innerHTML = item('overview', '내 현황', 'var(--ink)', '') + item('budget', '가계부', 'var(--peach)', budgetMonths().length ? budgetMonths().length + '개월' : '') + item('stocks', '나의 주식수익률', 'var(--bad)', (state.data.holdings || []).length || '') + item('agents', '에이전트', 'var(--pink)', state.data.agents.length, sub)
     + item('tasks', '작업 지시', 'var(--mint)', (state.data.tasks || []).filter(t => t.status === 'queued').length) + item('tree', '조직 구조', 'var(--lilac)', kids(null).length)
     + `<li class="menu-label" style="margin-top:10px">부서</li>` + kids(null).map(menuNode).join('');
 }
@@ -826,6 +927,7 @@ function render() {
   const prevTop = th0 ? th0.scrollTop : 0;
   if (state.active === 'tasks') m.innerHTML = tasksHTML();
   else if (state.active === 'budget') m.innerHTML = budgetHTML();
+  else if (state.active === 'stocks') m.innerHTML = stocksHTML();
   else if (state.active === 'tree') m.innerHTML = treeHTML();
   else if (state.active === 'agents') m.innerHTML = rosterHTML();
   else if (state.active === 'overview' || (state.active !== 'tasks' && !sec(state.active))) { state.active = 'overview'; m.innerHTML = homeHTML(); }
@@ -1029,6 +1131,8 @@ document.addEventListener('click', e => {
     if (a === 'cancel-task') return cancelTask(act.dataset.tid);
     if (a === 'chat-pick') { state.chatAgent = act.dataset.aid; return render(); }
     if (a === 'ask-agent') { state.chatAgent = act.dataset.aid; return go('tasks'); }
+    if (a === 'stock-add') return stockModal(null);
+    if (a === 'stock-edit') { const h = (state.data.holdings || []).find(x => x.id === act.dataset.hid); return h && stockModal(h); }
     if (a === 'sim-reset') { state.sim = { ...SIM_DEFAULT }; return render(); }
     if (a === 'flt') { state.filter = act.dataset.v; return render(); }
     if (a === 'move-agent') { const ag = state.data.agents.find(x => x.id === act.dataset.aid); return ag && moveModal(ag); }

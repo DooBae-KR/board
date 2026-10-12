@@ -350,3 +350,29 @@ test('세션 쿠키는 암호화되어 있어 토큰·아이디·만료 시각�
   assert.equal((await t.call('GET', '/api/harness', { headers: { Cookie: 'harness_session=' + flipped } })).status, 403);
   t.close();
 });
+
+test('나의 주식수익률: 거래 추가·수정·삭제는 사람만, 입력은 검증한다', async () => {
+  const t = await boot();
+  const ok = { name: '삼성전자', code: '005930', sector: '반도체', qty: 10, buy_price: 70000, buy_date: '2026-09-01' };
+  assert.equal((await t.call('POST', '/api/harness/holdings', { token: AGENT, body: ok })).status, 403);
+  for (const bad of [{ ...ok, qty: 1.5 }, { ...ok, buy_price: -1 }, { ...ok, code: '12' }, { ...ok, sell_price: 80000 }, { ...ok, sell_price: 80000, sell_date: '2026-08-01' }, { ...ok, name: '' }, { ...ok, buy_date: '9/1' }]) {
+    assert.equal((await t.call('POST', '/api/harness/holdings', { token: DASH, body: bad })).status, 400, JSON.stringify(bad));
+  }
+  const res = await t.call('POST', '/api/harness/holdings', { token: DASH, body: ok });
+  assert.equal(res.status, 201);
+  const { id } = await res.json();
+  let snap = await (await t.call('GET', '/api/harness', { token: DASH })).json();
+  assert.equal(snap.holdings.length, 1);
+  assert.equal(snap.holdings[0].sector, '반도체');
+  assert.equal(snap.holdings[0].sell_price, null);
+
+  assert.equal((await t.call('PATCH', '/api/harness/holdings/' + id, { token: AGENT, body: { sell_price: 1 } })).status, 403);
+  assert.equal((await t.call('PATCH', '/api/harness/holdings/' + id, { token: DASH, body: { sell_price: 77000, sell_date: '2026-09-20' } })).status, 200);
+  snap = await (await t.call('GET', '/api/harness', { token: DASH })).json();
+  assert.equal(snap.holdings[0].sell_price, 77000);
+  assert.equal(snap.holdings[0].name, '삼성전자');
+
+  assert.equal((await t.call('DELETE', '/api/harness/holdings/' + id, { token: DASH })).status, 200);
+  assert.equal((await t.call('DELETE', '/api/harness/holdings/' + id, { token: DASH })).status, 404);
+  t.close();
+});
