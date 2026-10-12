@@ -309,6 +309,19 @@ h1{font-family:var(--f-display);font-weight:400;font-size:30px;margin:2px 0 0;li
 .sim{display:grid;gap:8px}
 .sim .pick{width:100%}
 
+.bsel{display:flex;align-items:center;gap:8px}
+.bsel select{height:42px;border:1.5px solid var(--line);background:var(--surface);border-radius:12px;padding:0 36px 0 14px;font-family:var(--f-display);font-size:16px}
+.cmp{display:grid;gap:14px}
+.cmp .rowc{display:grid;grid-template-columns:minmax(64px,90px) minmax(0,1fr) auto;gap:10px;align-items:center;font-size:14px}
+.cmp .pair{display:grid;gap:4px}
+.cmp .track{height:10px;background:var(--soft);border-radius:4px;overflow:hidden}
+.cmp .fill{height:100%;border-radius:4px}
+.cmp .fill.b{background:var(--muted);opacity:.55}.cmp .fill.a{background:var(--accent)}
+.cmp em{font-style:normal;font-size:12px;font-family:var(--f-pixel);text-align:right;line-height:1.5}
+.cmp em b{display:block;font-weight:400;color:var(--good)}
+.keys{display:flex;gap:14px;font-size:12px;color:var(--muted)}.keys i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px}
+.rules{margin:0;padding-left:18px;color:var(--muted);font-size:14px}
+
 /* modal */
 .scrim{position:fixed;inset:0;background:rgba(20,18,45,.5);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
 .modal{background:var(--surface);border-radius:18px;width:min(560px,100%);max-height:calc(100% - 32px);overflow:auto;padding:22px;display:flex;flex-direction:column;gap:16px;box-shadow:0 30px 60px -20px rgba(0,0,0,.4)}
@@ -441,7 +454,7 @@ const hex = c => (/^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : null);
 const agentColor = a => hex(a.color) || FALLBACK_COLORS[[...a.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997, 0) % FALLBACK_COLORS.length];
 const ago = iso => { if (!iso) return ''; const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000); if (s < 60) return '방금'; if (s < 3600) return Math.floor(s / 60) + '분 전'; if (s < 86400) return Math.floor(s / 3600) + '시간 전'; return Math.floor(s / 86400) + '일 전'; };
 
-const state = { data: { sections: [], widgets: [], agents: [], events: [], tasks: [] }, chatAgent: null, drafts: {}, loaded: false, active: 'overview', collapsed: {}, filter: 'all', etag: null };
+const state = { budgetMonth: null, data: { sections: [], widgets: [], agents: [], events: [], tasks: [] }, chatAgent: null, drafts: {}, loaded: false, active: 'overview', collapsed: {}, filter: 'all', etag: null };
 const sec = id => state.data.sections.find(s => s.id === id);
 const kids = pid => state.data.sections.filter(s => (s.parent_id || null) === pid || (pid === null && s.parent_id && !sec(s.parent_id)));
 const agentsIn = sid => state.data.agents.filter(a => a.section_id === sid);
@@ -562,7 +575,7 @@ const cardHTML = s => {
 const eventsHTML = (list, limit = 8) => list.length ? `<ul class="ev">${list.slice(0, limit).map(e => { const a = state.data.agents.find(x => x.id === e.agent_id); return `<li><time>${esc(ago(e.created_at))}</time><span><b>${esc(a ? a.name : e.agent_id)}</b> ${esc(e.message || e.kind)}${e.output ? ` <small style="color:var(--muted)">→ ${esc(e.output)}</small>` : ''}</span></li>`; }).join('')}</ul>` : '<p class="empty">아직 보고가 없어요.</p>';
 
 /* ---------- 내 현황 홈: 가계부 · 학습 · 유튜브/인스타. 에이전트 활동은 '에이전트' 메뉴로 옮겼다 ---------- */
-const BUDGET_W = w => ['가계부 요약', '분류별 지출', '항목별 절감 가능액'].includes(w.title) || w.title.startsWith('가계부');
+const BUDGET_W = w => ['가계부 요약', '분류별 지출', '항목별 절감 가능액'].includes(w.title);
 const STUDY_W = w => w.title.startsWith('학습');
 const YT_W = w => w.title.startsWith('유튜브');
 const IG_W = w => w.title.startsWith('인스타');
@@ -602,12 +615,46 @@ function snsCard(cls, name, tag, hit, emptyMsg, seed) {
 function homeHTML() {
   const pick = fn => state.data.widgets.filter(fn).map(w => ({ w, s: sec(w.section_id) || {} }));
   const budget = pick(BUDGET_W), study = pick(STUDY_W), yt = pick(YT_W)[0], ig = pick(IG_W)[0], g = groupAgents();
-  const panel = (id, title, sub, body) => `<section class="panel" aria-labelledby="${id}"><div class="ghead"><h2 id="${id}">${title}</h2><small>${sub}</small></div>${body}</section>`;
+  const panel = (id, title, sub, body, more = '') => `<section class="panel" aria-labelledby="${id}"><div class="ghead"><h2 id="${id}">${title}</h2><small>${sub}</small>${more}</div>${body}</section>`;
   return `<div class="head"><div><div class="eyebrow">${new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}</div><h1>내 현황</h1></div>
     <div class="pulse" role="group" aria-label="에이전트 상태 바로가기"><span class="empty">에이전트</span>${Object.keys(AG).map(k => `<button type="button" data-act="agents-go" data-v="${k}"><i style="background:${AG[k].c}"></i>${AG[k].l} ${g[k].length}</button>`).join('')}</div></div>
-  ${panel('p-budget', '가계부', '예산도우미가 매월 갱신해요 (정산 제외)', budget.length ? `<div class="grid">${budget.map(widgetCard).join('')}</div>` : noData('가계부 위젯이 아직 없어요. 예산도우미(budget-advisor)가 월간 점검을 마치면 지출·분류·절감 가능액이 여기에 나타나요.'))}
+  ${panel('p-budget', '가계부', '예산도우미가 매월 갱신해요 (정산 제외)', budget.length ? `<div class="grid">${budget.map(widgetCard).join('')}</div>` : noData('가계부 위젯이 아직 없어요. 예산도우미(budget-advisor)가 월간 점검을 마치면 지출·분류·절감 가능액이 여기에 나타나요.'), '<button type="button" class="ghost" data-nav="budget" style="margin-left:auto">자세히 보기</button>')}
   ${panel('p-study', '나의 학습정보', '스터디 플래너 기준', study.length ? `<div class="grid">${study.map(widgetCard).join('')}</div>` : `<div class="nodata"><img src="${sprite('book')}" alt=""><p><b>연결 전이에요.</b> 스터디요약(study-digest)이 '학습 현황' 위젯(이번 주 달성률, 가까운 D-day 등)을 보내면 여기에 나타나요. 지금은 우리 허브 앱의 스터디 화면에서 볼 수 있어요.</p></div>`)}
   ${panel('p-sns', '유튜브 · 인스타그램', '구독자·팔로워와 활동지수', `<div class="grid">${snsCard('yt', '유튜브', 'YOUTUBE', yt, '구독자 수는 YouTube Data API 키가 있어야 가져올 수 있어요. 키는 서버 환경변수에만 두고, 에이전트가 \'유튜브 현황\' 위젯(구독자, 활동지수)을 보내면 여기에 나타나요.', '내 유튜브 채널의 구독자 수와 최근 업로드·조회 활동으로 활동지수(0~100)를 매일 계산해서 \'유튜브 현황\' 위젯(kpi: 구독자, 활동지수)으로 보고한다.')}${snsCard('ig', '인스타그램', 'INSTAGRAM', ig, '팔로워 수는 인스타그램 Graph API 토큰으로 가져와요. 에이전트가 \'인스타 현황\' 위젯(팔로워, 활동지수)을 보내면 여기에 나타나요.', '내 인스타그램 계정의 팔로워 수와 최근 게시물·참여 활동으로 활동지수(0~100)를 매일 계산해서 \'인스타 현황\' 위젯(kpi: 팔로워, 활동지수)으로 보고한다.')}</div>`)}`;
+}
+/* ---------- 가계부 상세: 월별 '가계부 상세 YYYY-MM' 위젯(data.detail)을 년월 콤보박스로 골라 본다. 거래 내용은 없고 분류별 합계·건수만 있다 ---------- */
+const budgetMonths = () => state.data.widgets.map(w => { const m = /^가계부 상세 (\d{4}-\d{2})$/.exec(w.title); return m && w.data?.detail ? { ym: m[1], d: w.data.detail, w } : null; }).filter(Boolean).sort((a, b) => b.ym.localeCompare(a.ym));
+const won = n => fmt(num(n)) + '원';
+function weeklySVG(d) {
+  const cats = ['식비', '생필품', '세탁'], labels = d.weekly.labels || [], tot = labels.map((_, i) => cats.reduce((t, c) => t + num(d.weekly[c]?.[i]), 0)), mx = Math.max(1, ...tot);
+  const W = 520, H = 170, pl = 8, bw = (W - pl * 2) / labels.length;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="주차별 지출">${labels.map((l, i) => { let y = H - 28; const x = pl + i * bw + bw * .18, w = bw * .64; const segs = cats.map((c, k) => { const h = num(d.weekly[c]?.[i]) / mx * (H - 52); y -= h; return h > 0 ? `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${SERIES[k]}"/>` : ''; }).join(''); return `${segs}<text x="${x + w / 2}" y="${Math.max(12, y - 5)}" text-anchor="middle" font-size="11" fill="var(--ink)">${tot[i] ? fmt(tot[i]) : ''}</text><text x="${x + w / 2}" y="${H - 8}" text-anchor="middle" font-size="12" fill="var(--muted)">${esc(l)}</text>`; }).join('')}</svg>`;
+}
+function budgetHTML() {
+  const months = budgetMonths();
+  const head = sel => `<div class="head"><div><div class="eyebrow">Budget</div><h1>가계부 상세</h1></div>${sel}</div>`;
+  if (!months.length) return head('') + noData('월별 상세가 아직 없어요. 예산도우미(budget-advisor)가 월간 점검을 마치면 년월을 골라 볼 수 있어요.');
+  const cur = months.find(m => m.ym === state.budgetMonth) || months[0], d = cur.d, cats = ['식비', '생필품', '세탁'];
+  const sel = `<label class="bsel"><span class="empty">년월</span><select id="b-month" aria-label="년월 선택">${months.map(m => `<option value="${m.ym}"${m.ym === cur.ym ? ' selected' : ''}>${esc(m.d.label || m.ym)}</option>`).join('')}</select></label>`;
+  const mx = Math.max(1, ...cats.map(c => num(d.before?.[c])));
+  return head(sel) + `
+  <div class="w full"><div class="wh"><h3>${esc(d.label || cur.ym)} 요약</h3><span class="wt">정산 제외</span></div>
+    <div class="kpis"><div class="kpi"><span>지출</span><strong>${fmt(d.spend)}<small>원</small></strong></div>
+      <div class="kpi"><span>줄일 수 있는 금액(예시)</span><strong>${fmt(d.saving)}<small>원</small></strong><span class="delta downb" style="color:var(--good)">지출의 ${esc(d.rate)}%</span></div>
+      <div class="kpi"><span>절감 후 지출(예시)</span><strong>${fmt(d.after)}<small>원</small></strong></div>
+      <div class="kpi"><span>월초 → 월말 잔액</span><strong style="font-size:21px">${fmt(d.balance?.start)} → ${fmt(d.balance?.end)}<small>원</small></strong></div></div></div>
+  <div class="grid">
+    <article class="w"><div class="wh"><h3>항목별 전 → 후</h3><span class="wt">BEFORE / AFTER</span></div>
+      <div class="keys"><span><i style="background:var(--muted);opacity:.55"></i>지금</span><span><i style="background:var(--accent)"></i>목표 적용</span></div>
+      <div class="cmp">${cats.map(c => { const b = num(d.before?.[c]), a = num(d.afterBy?.[c]); return `<div class="rowc"><span>${c}<br><small style="color:var(--muted)">${num(d.counts?.[c])}건</small></span><div class="pair"><div class="track"><div class="fill b" style="width:${b / mx * 100}%"></div></div><div class="track"><div class="fill a" style="width:${a / mx * 100}%"></div></div></div><em>${fmt(b)} → ${fmt(a)}<b>−${fmt(b - a)}</b></em></div>`; }).join('')}</div>
+      ${Array.isArray(d.rules) ? `<ul class="rules">${d.rules.map(r => `<li>${esc(r)}</li>`).join('')}</ul><p class="hint2">절감 목표는 예시이고, 같은 패턴이 반복된다는 가정이에요.</p>` : ''}</article>
+    <article class="w"><div class="wh"><h3>분류별 지출</h3><span class="wt">비율</span></div>
+      <div class="donut">${donutSVG(cats.map(c => ({ label: c, value: num(d.before?.[c]) })))}<ul class="legend">${cats.map((c, i) => `<li><i style="background:${SERIES[i]}"></i>${c}<em>${fmt(d.before?.[c])}</em></li>`).join('')}</ul></div></article>
+    <article class="w"><div class="wh"><h3>주차별 지출</h3><span class="wt">실제 통계</span></div>
+      <div class="keys">${cats.map((c, i) => `<span><i style="background:${SERIES[i]}"></i>${c}</span>`).join('')}</div>${weeklySVG(d)}</article>
+    <article class="w"><div class="wh"><h3>정산 · 기타</h3><span class="wt">지출 제외</span></div>
+      <ul class="list"><li><div class="t">정산 입금</div><span>${won(d.settle?.in)}</span></li><li><div class="t">정산 출금</div><span>${won(d.settle?.out)}</span></li><li><div class="t">기타 수입(캐시백·이자)</div><span>${won(d.otherIncome)}</span></li><li><div class="t">분석한 거래</div><span>${fmt(d.txCount)}건</span></li></ul></article>
+  </div>`;
 }
 function sectionHTML(s) {
   const ws = widgetsOf(s.id), ch = kids(s.id), ags = agentsIn(s.id), lastMsg = state.data.events.find(e => e.message && ags.some(a => a.id === e.agent_id));
@@ -711,7 +758,7 @@ function renderMenu() {
   const g = groupAgents(), cur = id => (state.active === id ? 'aria-current="page"' : '');
   const item = (id, n, c, k, extra = '') => `<li><div class="row"><span class="caret none"></span><button type="button" class="mi" data-nav="${id}" ${cur(id)}><span class="dot" style="background:${c}"></span><span class="nm">${n}</span>${k === '' ? '' : `<span class="cnt">${k}</span>`}</button></div>${extra}</li>`;
   const sub = `<ul>${Object.keys(AG).map(k => `<li><button type="button" class="leaf" data-act="agents-go" data-v="${k}"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;flex:none;background:${AG[k].c}"></span><span class="ln">${AG[k].l}</span><span class="pct" style="color:var(--muted)">${g[k].length}</span></button></li>`).join('')}</ul>`;
-  $('menu').innerHTML = item('overview', '내 현황', 'var(--ink)', '') + item('agents', '에이전트', 'var(--pink)', state.data.agents.length, sub)
+  $('menu').innerHTML = item('overview', '내 현황', 'var(--ink)', '') + item('budget', '가계부', 'var(--peach)', budgetMonths().length ? budgetMonths().length + '개월' : '') + item('agents', '에이전트', 'var(--pink)', state.data.agents.length, sub)
     + item('tasks', '작업 지시', 'var(--mint)', (state.data.tasks || []).filter(t => t.status === 'queued').length) + item('tree', '조직 구조', 'var(--lilac)', kids(null).length)
     + `<li class="menu-label" style="margin-top:10px">부서</li>` + kids(null).map(menuNode).join('');
 }
@@ -725,6 +772,7 @@ function render() {
   const atBottom = !th0 || th0.scrollHeight - th0.scrollTop - th0.clientHeight < 40;
   const prevTop = th0 ? th0.scrollTop : 0;
   if (state.active === 'tasks') m.innerHTML = tasksHTML();
+  else if (state.active === 'budget') m.innerHTML = budgetHTML();
   else if (state.active === 'tree') m.innerHTML = treeHTML();
   else if (state.active === 'agents') m.innerHTML = rosterHTML();
   else if (state.active === 'overview' || (state.active !== 'tasks' && !sec(state.active))) { state.active = 'overview'; m.innerHTML = homeHTML(); }
@@ -963,6 +1011,7 @@ function setMenu(open) {
 $('menuBtn').addEventListener('click', () => setMenu(!document.body.classList.contains('menu-open')));
 $('drawerScrim').addEventListener('click', () => setMenu(false));
 $('build').addEventListener('submit', e => { e.preventDefault(); const q = $('buildq').value.trim(); $('buildq').value = ''; searchBuild(q); });
+document.addEventListener('change', e => { if (e.target.id === 'b-month') { state.budgetMonth = e.target.value; render(); $('b-month')?.focus(); } });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { poll(); wake(); } });
 document.addEventListener('click', () => { pollMs = 5000; });
 

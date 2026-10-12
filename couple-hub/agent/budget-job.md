@@ -50,6 +50,12 @@ on conflict (section_id, title) do update set type = excluded.type, size = exclu
 ```
 값(0)은 3장의 계산 결과로 바꿔 넣는다.
 
+### 월별 상세 위젯 (대시보드 '가계부' 화면의 년월 콤보박스)
+같은 방식으로 `kpi` 유형 위젯을 **월마다 하나씩** 쓴다. 제목은 `가계부 상세 YYYY-MM`(예: `가계부 상세 2026-09`), sort 20. 이미 있는 달은 덮어쓴다.
+`data`는 `{"items":[요약 3개],"detail":{...}}`이고 `detail`에는 거래 내용 없이 합계만 넣는다:
+`month`, `label`("2026년 9월"), `spend`, `after`, `saving`, `rate`(%), `before`/`afterBy`({식비,생필품,세탁}), `counts`({식비,생필품,세탁}), `settle`({in,out}), `otherIncome`, `balance`({start,end}), `weekly`({labels:["1~7일","8~14일","15~21일","22~28일","29일~"], 식비:[5개], 생필품:[5개], 세탁:[5개]}), `txCount`, `rules`(절감 목표 문장 3개).
+위 3개 위젯(`가계부 요약` 등)은 가장 최근 달의 값이다.
+
 ## 5. 하네스 상태 기록
 마지막에 한 번만:
 ```sql
