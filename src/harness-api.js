@@ -121,6 +121,37 @@ const str = (v, field, { min = 0, max }) => {
   return s;
 };
 
+const HOLDING_MAX = 500;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const num = (v, field, { required = false } = {}) => {
+  if (v == null || v === '') { if (required) throw new HarnessError(`${field}가 필요합니다`); return null; }
+  const n = typeof v === 'string' ? Number(v.replace(/,/g, '')) : v;
+  if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0 || n > 1e12) throw new HarnessError(`${field}는 0보다 큰 숫자여야 합니다`);
+  return Math.round(n * 100) / 100;
+};
+const day = (v, field) => {
+  if (v == null || v === '') return null;
+  if (typeof v !== 'string' || !DATE_RE.test(v) || Number.isNaN(Date.parse(v))) throw new HarnessError(`${field}는 YYYY-MM-DD 형식이어야 합니다`);
+  return v;
+};
+/** 내 거래 한 건을 검증해 DB 행 모양으로 만든다 (수정 때는 기존 행에 덮어쓴 값을 넘긴다) */
+export function parseHolding(b) {
+  const name = str(b.name, 'name', { min: 1, max: 40 });
+  const code = b.code == null || b.code === '' ? null : str(b.code, 'code', { min: 1, max: 6 });
+  if (code && !/^[0-9A-Za-z]{6}$/.test(code)) throw new HarnessError('code는 영문·숫자 6자리여야 합니다');
+  const sector = str(b.sector, 'sector', { max: 20 }) || '미분류';
+  const qty = num(b.qty, 'qty', { required: true });
+  if (!Number.isInteger(qty)) throw new HarnessError('qty는 정수여야 합니다');
+  const buy_price = num(b.buy_price, 'buy_price', { required: true });
+  const buy_date = day(b.buy_date, 'buy_date') ?? new Date().toISOString().slice(0, 10);
+  const sell_price = num(b.sell_price, 'sell_price');
+  const sell_date = day(b.sell_date, 'sell_date');
+  if ((sell_price == null) !== (sell_date == null)) throw new HarnessError('매도가와 매도일은 함께 적어야 합니다');
+  if (sell_date && sell_date < buy_date) throw new HarnessError('매도일이 매수일보다 빠릅니다');
+  const current_price = sell_price == null ? num(b.current_price, 'current_price') : null;
+  return { name, code, sector, qty, buy_price, buy_date, sell_price, sell_date, current_price };
+}
+
 /** 대시보드가 쓰는 모양으로 정리한다. md 해시·도구 목록 같은 내부 값은 내보내지 않는다 */
 export function buildSnapshot(raw, now = Date.now()) {
   const clips = new Map();
@@ -137,6 +168,7 @@ export function buildSnapshot(raw, now = Date.now()) {
       clips: clips.get(a.id) ?? [], moved_at: moved.get(a.id) ?? null,
       stale: a.status === 'working' && !!a.last_report_at && now - Date.parse(a.last_report_at) > STALE_MS,
     })),
+    holdings: (raw.holdings ?? []).map(({ id, name, code, sector, qty, buy_price, buy_date, sell_price, sell_date, current_price }) => ({ id, name, code, sector, qty, buy_price: Number(buy_price), buy_date, sell_price: sell_price == null ? null : Number(sell_price), sell_date, current_price: current_price == null ? null : Number(current_price) })),
     tasks: (raw.tasks ?? []).map(({ id, agent_id, body, status, created_at, claimed_at, closed_at }) => ({ id, agent_id, body, status, created_at, claimed_at, closed_at })),
     events: raw.events.map(({ id, agent_id, kind, message, from_section, to_section, output, created_at }) => ({ id, agent_id, kind, message, from_section, to_section, output, created_at })),
   };
@@ -248,6 +280,14 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
       return send(res, 200, { task: t ? { id: t.id, agent_id: t.agent_id, body: t.body, created_at: t.created_at } : null });
     },
 
+    /** 내 주식 거래 한 건 추가 (나의 주식수익률) */
+    async 'POST /api/harness/holdings'(req, res) {
+      const row = parseHolding(await readJson(req));
+      if (await store.countHoldings() >= HOLDING_MAX) throw new HarnessError(`거래는 ${HOLDING_MAX}건까지 넣을 수 있습니다. 오래된 건을 지워 주세요`, 409);
+      const h = await store.createHolding(row);
+      return send(res, 201, { id: h.id });
+    },
+
     async 'POST /api/harness/sections'(req, res) {
       const b = await readJson(req);
       const name = str(b.name, 'name', { min: 1, max: 40 });
@@ -279,7 +319,7 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
   };
 
   /** 사람(DASHBOARD_TOKEN)만 쓸 수 있는 동작 */
-  const dashboardOnly = new Set(['POST /api/harness/tasks']);
+  const dashboardOnly = new Set(['POST /api/harness/tasks', 'POST /api/harness/holdings']);
 
   async function handle(req, res, url) {
     const path = url.pathname.replace(/\/+$/, '') || '/';
@@ -356,6 +396,23 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
         const rows = await store.updateTask(t.id, patch, t.status);
         if (!rows.length) throw new HarnessError('같은 작업이 동시에 바뀌었습니다. 다시 시도하세요', 409);
         return send(res, 200, { id: t.id, status: rows[0].status }), true;
+      }
+
+      // 내 주식 거래 수정·삭제 (사람만)
+      const hold = /^\/api\/harness\/holdings\/([0-9a-fA-F-]{36})$/.exec(path);
+      if (hold) {
+        if (req.method !== 'PATCH' && req.method !== 'DELETE') return send(res, 405, { error: 'method not allowed' }, { Allow: 'PATCH, DELETE' }), true;
+        if (who !== 'dashboard') return send(res, 403, { error: 'forbidden' }), true;
+        if (req.method === 'DELETE') {
+          const gone = await store.deleteHolding(hold[1]);
+          return gone ? send(res, 200, { deleted: gone.name }) : send(res, 404, { error: 'holding not found' }), true;
+        }
+        const b = await readJson(req);
+        const cur = (await store.snapshot()).holdings?.find((x) => x.id === hold[1]);
+        if (!cur) return send(res, 404, { error: 'holding not found' }), true;
+        const row = parseHolding({ ...cur, ...b });
+        await store.updateHolding(hold[1], row);
+        return send(res, 200, { id: hold[1] }), true;
       }
 
       // 섹션 삭제

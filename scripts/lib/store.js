@@ -7,15 +7,16 @@ export function createStore(db) {
   return {
     /** 대시보드가 한 번에 그릴 수 있는 전체 상태 */
     async snapshot() {
-      const [sections, widgets, agents, events, motions, tasks] = await Promise.all([
+      const [sections, widgets, agents, events, motions, tasks, holdings] = await Promise.all([
         db.select('harness_sections', 'select=*&order=sort.asc,name.asc'),
         db.select('harness_widgets', 'select=*&order=sort.asc,created_at.asc'),
         db.select('harness_agents', 'select=*&archived_at=is.null&order=name.asc'),
         db.select('harness_agent_events', 'select=*&order=id.desc&limit=200'),
         db.select('harness_agent_motions', 'select=agent_id,state,storage_path,rendered_at&storage_path=not.is.null'),
         db.select('harness_tasks', 'select=*&order=created_at.desc&limit=200'),
+        db.select('harness_holdings', 'select=*&order=buy_date.desc,created_at.desc&limit=500').catch(() => []), // 마이그레이션 전에도 대시보드가 뜨게 한다
       ]);
-      return { sections, widgets, agents, events, motions, tasks };
+      return { sections, widgets, agents, events, motions, tasks, holdings };
     },
 
     async getAgent(id) {
@@ -55,6 +56,12 @@ export function createStore(db) {
     async upsertAdmin(username, passwordHash) {
       return (await db.upsert('harness_admins', [{ username, password_hash: passwordHash, updated_at: new Date().toISOString() }], 'username'))[0];
     },
+
+    // --- 나의 주식수익률 (harness_holdings, service_role 전용) ---
+    async countHoldings() { return (await db.select('harness_holdings', 'select=id&limit=500')).length; },
+    async createHolding(row) { return (await db.insert('harness_holdings', [row]))[0]; },
+    async updateHolding(id, patch) { return (await db.update('harness_holdings', db.eq('id', id), patch))[0] ?? null; },
+    async deleteHolding(id) { return (await db.remove('harness_holdings', db.eq('id', id)))[0] ?? null; },
 
     // --- 작업 지시 요청함 (harness_tasks) ---
     async listTasks({ agent, status, limit = 50 } = {}) {

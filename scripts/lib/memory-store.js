@@ -5,7 +5,7 @@ import { SupabaseError } from './supabase.js';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const clone = (v) => structuredClone(v);
 
-export function createMemoryStore({ sections = [], agents = [], widgets = [], motions = [], tasks = [], admins = [] } = {}) {
+export function createMemoryStore({ sections = [], agents = [], widgets = [], motions = [], tasks = [], admins = [], holdings = [] } = {}) {
   let tick = 0;
   let eventId = 0;
   const stamp = () => new Date(Date.now() + tick++).toISOString(); // 호출마다 달라지는 updated_at
@@ -17,6 +17,7 @@ export function createMemoryStore({ sections = [], agents = [], widgets = [], mo
     tasks: tasks.map((t) => ({ id: randomUUID(), status: 'queued', created_at: stamp(), claimed_at: null, closed_at: null, ...t })),
     motions: motions.slice(),
     admins: admins.map((a) => ({ ...a })),
+    holdings: holdings.map((h) => ({ id: randomUUID(), sector: '미분류', created_at: stamp(), ...h })),
   };
   const sectionBy = (ref) => db.sections.find((s) => (UUID_RE.test(String(ref)) ? s.id === ref : s.name === ref));
 
@@ -28,6 +29,7 @@ export function createMemoryStore({ sections = [], agents = [], widgets = [], mo
         events: db.events.slice().sort((a, b) => b.id - a.id).slice(0, 200),
         motions: db.motions.filter((m) => m.storage_path),
         tasks: db.tasks.slice().sort((a, b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, 200),
+        holdings: db.holdings.slice().sort((a, b) => (a.buy_date < b.buy_date ? 1 : -1)),
       });
     },
     async getAgent(id) { return clone(db.agents.find((a) => a.id === id) ?? null); },
@@ -38,6 +40,10 @@ export function createMemoryStore({ sections = [], agents = [], widgets = [], mo
       Object.assign(a, clone(patch), { updated_at: stamp() });
       return [clone(a)];
     },
+    async countHoldings() { return db.holdings.length; },
+    async createHolding(row) { const h = { id: randomUUID(), sector: '미분류', sell_price: null, sell_date: null, current_price: null, code: null, created_at: stamp(), ...clone(row) }; db.holdings.push(h); return clone(h); },
+    async updateHolding(id, patch) { const h = db.holdings.find((x) => x.id === id); if (!h) return null; Object.assign(h, clone(patch)); return clone(h); },
+    async deleteHolding(id) { const h = db.holdings.find((x) => x.id === id); if (!h) return null; db.holdings = db.holdings.filter((x) => x !== h); return clone(h); },
     async addEvent(event) { const e = { id: ++eventId, created_at: stamp(), ...clone(event) }; db.events.push(e); return [clone(e)]; },
     async createSection(row) {
       if (db.sections.some((s) => s.name === row.name)) throw new SupabaseError('duplicate key value violates unique constraint', 409, '23505');

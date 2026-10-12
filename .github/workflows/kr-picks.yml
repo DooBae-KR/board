@@ -13,7 +13,7 @@ concurrency: kr-picks
 jobs:
   picks:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
       KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
@@ -33,7 +33,7 @@ jobs:
           restore-keys: kr-picks-
       - name: 오늘의 추천
         shell: bash
-        run: node scripts/kr-picks.js pick --market both --size 30 --top 3 --report | tee -a "$GITHUB_STEP_SUMMARY"
+        run: node scripts/kr-picks.js pick --market both --size 100 --top 3 --report | tee -a "$GITHUB_STEP_SUMMARY"
       - name: 이전 추천 평가 (예상 vs 실제)
         shell: bash
         run: node scripts/kr-picks.js eval --report | tee -a "$GITHUB_STEP_SUMMARY"

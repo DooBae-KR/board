@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // 국장 추천 기록과 사후 평가 (읽기 전용: 시세 조회만 하고 주문은 내지 않는다)
-//   node --env-file=.env scripts/kr-picks.js pick [--market both|kospi|kosdaq] [--size 30] [--top 3] [--codes 005930,000660] [--report]
+//   node --env-file=.env scripts/kr-picks.js pick [--market both|kospi|kosdaq] [--size 100] [--top 3] [--codes 005930,000660] [--report]
 //        코스피·코스닥 시가총액 상위 종목 중 우상향 조건에 맞는 종목의 매수가·예상 매도가·손절가를 정해 기록 (시장별로 --top개)
 //   node --env-file=.env scripts/kr-picks.js eval [--report]                          기록한 추천을 지금 가격과 비교해 예상 수익 vs 실제 수익을 출력
 // 환경변수: KIS_APP_KEY, KIS_APP_SECRET (한국투자증권 Open API), KIS_ENV=demo|real(기본 demo), KR_PICKS_FILE(기본 .kr-picks.json)
@@ -28,11 +28,12 @@ async function token() {
   writeFileSync(TOKEN_FILE, JSON.stringify({ env: kisEnv, base: BASE, token: j.access_token, expires: String(j.access_token_token_expired).replace(' ', 'T') + '+09:00' }), { mode: 0o600 });
   return j.access_token;
 }
-async function kis(path, trId, params, tk) {
+async function kis(path, trId, params, tk, cont = '') {
   await sleep(600); // 모의서버는 초당 호출 수가 적다
-  const res = await fetch(`${BASE}${path}?${new URLSearchParams(params)}`, { headers: { authorization: `Bearer ${tk}`, appkey: env.KIS_APP_KEY, appsecret: env.KIS_APP_SECRET, tr_id: trId, custtype: 'P' } });
+  const res = await fetch(`${BASE}${path}?${new URLSearchParams(params)}`, { headers: { authorization: `Bearer ${tk}`, appkey: env.KIS_APP_KEY, appsecret: env.KIS_APP_SECRET, tr_id: trId, custtype: 'P', ...(cont ? { tr_cont: cont } : {}) } });
   const j = await res.json().catch(() => ({}));
   if (!res.ok || j.rt_cd !== '0') throw new Error(`${trId} 실패: ${j.msg1 || res.status}`);
+  j._more = ['M', 'F'].includes(res.headers.get('tr_cont')); // 다음 쪽이 있으면 M/F
   return j;
 }
 const price = async (code, tk) => Number((await kis('/uapi/domestic-stock/v1/quotations/inquire-price', 'FHKST01010100', { FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: code }, tk)).output.stck_prpr);
@@ -45,12 +46,20 @@ const load = () => (existsSync(FILE) ? JSON.parse(readFileSync(FILE, 'utf8')) : 
 const won = (n) => Math.round(n).toLocaleString('ko-KR');
 const pct = (n) => (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
 
-async function universe(tk, market, size) { // KIS 시가총액 상위(보통주) 목록: 코스피 0001, 코스닥 1001
-  const j = await kis('/uapi/domestic-stock/v1/ranking/market-cap', 'FHPST01740000', { fid_input_price_2: '', fid_cond_mrkt_div_code: 'J', fid_cond_scr_div_code: '20174', fid_div_cls_code: '1', fid_input_iscd: market === 'kosdaq' ? '1001' : '0001', fid_trgt_cls_code: '0', fid_trgt_exls_cls_code: '0', fid_input_price_1: '', fid_vol_cnt: '' }, tk);
-  return (j.output || []).slice(0, size).map((r) => ({ code: r.mksc_shrn_iscd, name: r.hts_kor_isnm, market }));
+async function universe(tk, market, size) { // KIS 시가총액 상위(보통주) 목록: 코스피 0001, 코스닥 1001. 한 번에 ~30개라 tr_cont로 이어 받는다
+  const params = { fid_input_price_2: '', fid_cond_mrkt_div_code: 'J', fid_cond_scr_div_code: '20174', fid_div_cls_code: '1', fid_input_iscd: market === 'kosdaq' ? '1001' : '0001', fid_trgt_cls_code: '0', fid_trgt_exls_cls_code: '0', fid_input_price_1: '', fid_vol_cnt: '' };
+  const out = [], seen = new Set();
+  for (let page = 0, cont = ''; page < 8 && out.length < size; page++) {
+    const j = await kis('/uapi/domestic-stock/v1/ranking/market-cap', 'FHPST01740000', params, tk, cont);
+    let added = 0;
+    for (const r of j.output || []) if (r.mksc_shrn_iscd && !seen.has(r.mksc_shrn_iscd)) { seen.add(r.mksc_shrn_iscd); out.push({ code: r.mksc_shrn_iscd, name: r.hts_kor_isnm, market }); added++; }
+    if (!j._more || !added) break;
+    cont = 'N';
+  }
+  return out.slice(0, size);
 }
 async function pick() {
-  const tk = await token(), top = Number(arg('top', 3)) || 3, size = Number(arg('size', 30)) || 30, mk = String(arg('market', 'both'));
+  const tk = await token(), top = Number(arg('top', 3)) || 3, size = Number(arg('size', 100)) || 100, mk = String(arg('market', 'both'));
   const markets = mk === 'kospi' ? ['kospi'] : mk === 'kosdaq' ? ['kosdaq'] : ['kospi', 'kosdaq'], today = ymd(kst()), skipped = [];
   let list = [];
   if (arg('codes', false)) list = String(arg('codes')).split(',').map((c) => c.trim()).filter((c) => /^\d{6}$/.test(c)).map((code) => ({ code, name: NAMES[code] || code, market: 'custom' }));
