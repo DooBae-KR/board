@@ -1,0 +1,28 @@
+# 대시보드 '작업 지시'에 쌓인 작업을 주기적으로 가져가 답한다 (Agent Substrate Actor가 없을 때의 실행기).
+# 가져올 작업이 없으면 몇 초 만에 끝난다. 처리할 에이전트는 Variables의 RUNNER_AGENTS(기본 stock-analyst)로 정한다.
+name: agent-runner
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: agent-runner
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HARNESS_API_URL: ${{ secrets.HARNESS_API_URL }}
+      HARNESS_API_TOKEN: ${{ secrets.HARNESS_API_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      RUNNER_AGENTS: ${{ vars.RUNNER_AGENTS || 'stock-analyst' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: 작업 처리
+        shell: bash
+        run: node scripts/agent-runner.js
