@@ -9,6 +9,7 @@
 | `web/index.html` | 단일 페이지 앱. Supabase 로그인, 동적 카테고리 메뉴, 자동 차트, 미장 분석, 스터디 플래너 |
 | `agent/app.py` | 미장 분석 API (FastAPI + yfinance + gs-quant 지표). 테스트: `python test_app.py` |
 | `agent/study-digest-job.md` | 스터디 아침 요약·주간 문서 작업 지침 (예약 실행용) |
+| `agent/budget-job.md` | 월간 가계부 점검 지침. 매월 1일 아침 전월 시트를 분석해 하네스 위젯을 갱신 (예약 실행용) |
 | `../supabase/migrations/20261012083000_couple_hub.sql` | `cp_` 테이블·RLS·함수 (여러 번 실행해도 안전) |
 | `../agents/{stock-analyst,study-digest,web-qa,budget-advisor}.md` | 하네스 에이전트 정의 (부서: 우리 허브) |
 
@@ -29,4 +30,4 @@
 - gs-quant의 데이터 API는 Goldman Sachs 기관 자격증명이 필요해 쓰지 않습니다. 시세는 무료 소스(yfinance), gs-quant는 지표 계산 함수만 사용합니다.
 - 매수·매도·손절 가격은 과거 가격 지표로 계산한 **참고 구간**이며 투자 권유나 수익 보장이 아닙니다. 백테스트로 검증된 규칙이 아닙니다.
 - 스터디 요약은 txt·md·텍스트가 들어 있는 PDF만 지원합니다 (이미지·스캔본·Word 미지원).
-- **하네스 보고 규칙과의 차이:** 평일 07:30 예약 작업(스터디 아침 요약)은 현재 `harness_agents`의 상태를 SQL로 직접 갱신합니다. `CLAUDE.md` 2장 5항은 `harness-report.js`(`HARNESS_API_TOKEN`)로 보고하라고 하므로, 예약 작업 환경에 API 주소·토큰을 연결하면 그쪽으로 바꿔야 합니다.
+- **하네스 보고 규칙과의 차이:** 평일 07:30 예약 작업(스터디 아침 요약)은 현재 `harness_agents`의 상태를 SQL로 직접 갱신합니다. `CLAUDE.md` 2장 5항은 `harness-report.js`(`HARNESS_API_TOKEN`)로 보고하라고 하므로, 예약 작업 환경에 API 주소·토큰을 연결하면 그쪽으로 바꿔야 합니다. 월간 가계부 점검 작업(`budget-job.md`)도 `harness_widgets`와 `harness_agents`를 SQL로 갱신하므로 같은 예외입니다.
