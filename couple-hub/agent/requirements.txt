@@ -1,0 +1,6 @@
+gs-quant>=1.0
+yfinance>=0.2.40
+fastapi>=0.110
+uvicorn>=0.29
+pandas
+numpy
