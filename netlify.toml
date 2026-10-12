@@ -22,6 +22,10 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # 우리 허브 웹앱(couple-hub/web)에는 Supabase 프로젝트 주소와 공개용(publishable) 키가 들어 있다.
+  # 둘 다 브라우저에 공개되는 값이라 비밀이 아니므로, 이 파일만 비밀값 검사에서 뺀다.
+  # 서비스 롤 키 등 진짜 비밀이 다른 파일에 들어가면 계속 빌드가 막힌다.
+  SECRETS_SCAN_OMIT_PATHS = "couple-hub/web/index.html"
 
 [functions]
   node_bundler = "esbuild"
