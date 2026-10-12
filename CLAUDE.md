@@ -41,6 +41,7 @@
 4. 스냅샷은 재개를 빠르게 하기 위한 것일 뿐 기록이 아니다. 업무 시작·단계 완료·종료는 반드시 Supabase에 보고한다.
 5. 한 ActorTemplate에는 VM 종류 하나만 쓴다. GPU 패스스루와 `EgressPolicy`는 지원되지 않으므로 그것에 기대는 에이전트를 만들지 않는다.
 6. Agent Substrate는 현재 평가·비운영 용도로 제공된다. 운영 전환 전에는 사람의 승인을 받는다.
+7. Actor가 아직 없는 에이전트의 '작업 지시'는 `scripts/agent-runner.js`(`.github/workflows/agent-runner.yml`, 30분마다)가 대신 처리한다. 6장 순서(`next`→`start`→`step`→`done`/`fail`)를 그대로 따르고 `HARNESS_API_TOKEN`만 쓴다. 모델 호출용 `ANTHROPIC_API_KEY`는 CI 비밀값으로만 두며 에이전트 정의·로그·답변에 넣지 않는다. 처리 대상은 `RUNNER_AGENTS`(기본 `stock-analyst`)로 정하고, 글로 답하는 에이전트만 넣는다(코드 수정·PR이 필요한 에이전트는 이 실행기로 돌리지 않는다).
 
 ## 5. 모션: HyperFrames (by HeyGen)
 
