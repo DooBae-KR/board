@@ -10,6 +10,7 @@
     "bot:check": "node scripts/check-bot.js",
     "agents:sync": "node --env-file=.env scripts/agents-sync.js",
     "agents:check": "node scripts/agents-sync.js --dry-run",
+    "story:check": "node scripts/check-story.js",
     "harness:report": "node --env-file=.env scripts/harness-report.js",
     "motions:render": "node --env-file=.env scripts/render-motions.js"
   },

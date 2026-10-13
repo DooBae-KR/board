@@ -6,8 +6,8 @@
 
 ## 우리 앱 정보와 공식 문서 확인 사항 (2026-10-13 조회)
 
-- **Meta 앱 ID: `1109070718261713`** (비밀이 아닌 공개 값입니다). 앱 대시보드: https://developers.facebook.com/apps/1109070718261713/
-  - 대시보드에는 **Meta 앱 ID/시크릿**(설정 → 기본 설정)과, Instagram 제품 안의 **Instagram 앱 ID/시크릿**이 따로 있을 수 있습니다. 어느 쪽이 웹훅 서명 시크릿인지는 공식 문서가 "앱 시크릿"이라고만 써서 단정할 수 없습니다. 웹훅이 401로 거절되면 다른 쪽 시크릿을 `APP_SECRET`에 넣어 보세요.
+- **Meta 앱 ID: `1109070718261713`**, **Instagram 앱 ID: `1082443284780720`** (앱 이름 "비서-IG", 둘 다 비밀이 아닌 공개 값입니다. Instagram 앱 ID와 시크릿은 앱 대시보드의 *Instagram → API setup with Instagram login* 화면 맨 위에 있습니다). 앱 대시보드: https://developers.facebook.com/apps/1109070718261713/
+  - 대시보드에는 **Meta 앱 ID/시크릿**(설정 → 기본 설정)과, Instagram 제품 안의 **Instagram 앱 ID/시크릿**이 따로 있을 수 있습니다. 어느 쪽이 웹훅 서명 시크릿인지는 공식 문서가 "앱 시크릿"이라고만 써서 단정할 수 없습니다. **`APP_SECRET`에는 먼저 위 *Instagram 앱 시크릿 코드*(Instagram 설정 화면의 "표시" 버튼)를 넣고**, 웹훅이 401로 거절되면 Meta 앱 시크릿으로 바꿔 보세요.
 - **권한 이름**(확정): `instagram_business_basic`, `instagram_business_manage_comments`, `instagram_business_manage_messages`
 - **토큰**: 대시보드의 *Instagram > API setup with Instagram business login → Generate token*으로 만든 토큰은 **60일** 유효합니다. 갱신은 `GET https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token` — **발급 24시간 후부터, 만료 전에만** 가능합니다. 만료되면 갱신 불가(재발급).
 - **웹훅**: 콜백은 유효한 TLS 인증서의 HTTPS여야 합니다(Netlify는 해당). 계정 구독은 `POST https://graph.instagram.com/v25.0/<IG계정ID>/subscribed_apps?subscribed_fields=comments,messages`. **공식 문서: "웹훅을 받으려면 앱이 Live 모드여야 한다"**, 그리고 `comments` 필드는 **고급 액세스(Advanced Access)** 가 필요하다고 되어 있습니다. 또한 댓글 알림은 **공개 계정**이어야 옵니다.
@@ -118,7 +118,7 @@ npm run bot:check -- --online --url https://<사이트>  # + 웹훅 핸드셰이
 
 ## 9. 첫 영상 업로드, 미디어 ID 찾기, repos.json 등록
 
-1. `docs/publish-markitdown.md` 의 패키지대로 한국어 릴스는 한국어 계정에, 영어 릴스는 영어 계정에 업로드합니다. 대본은 `docs/script-markitdown.md`.
+1. 한국어 릴스는 한국어 계정에, 영어 릴스는 영어 계정에 업로드합니다. 대본·규격은 `docs/video-spec.md`.
 2. 미디어 ID 조회 (계정별로 따로, 토큰은 헤더로):
 
    ```bash
@@ -127,7 +127,8 @@ npm run bot:check -- --online --url https://<사이트>  # + 웹훅 핸드셰이
    ```
 
    응답의 `data[]` 에서 방금 올린 영상의 `permalink`/`caption` 으로 구분해 **`id`** 를 복사합니다(숫자). 영어 계정은 `IG_EN_*` 로 같은 호출. 같은 영상이라도 계정마다 ID가 다릅니다.
-3. `data/repos.json` 의 예시 항목을 지우고 실제 값으로 바꿉니다(`docs/script-markitdown.md` 하단 예시 참고).
+   **더 쉬운 방법 (토큰 없이):** 영상을 올린 뒤 **앱 역할에 등록한 다른 계정으로 그 영상에 댓글을 하나 답니다**(키워드가 아니어도 됩니다). 봇은 등록되지 않은 게시물의 댓글이면 반응하지 않고 `igbot_events`에 `unmatched` 이벤트와 `detail = media:<게시물 ID>`만 남깁니다(댓글 내용·작성자는 저장하지 않음). Supabase에서 `select at, lang, detail from igbot_events where event = 'unmatched' order by at desc` 로 보거나 Claude Code에 "unmatched 이벤트의 미디어 ID 알려줘"라고 요청하세요. 이 방법은 웹훅이 실제로 도착한다는 확인도 겸합니다.
+3. `data/repos.json` 의 예시 항목을 지우고 실제 값으로 바꿉니다(`docs/script-prompt.md`의 `repos.json` 항목 형식).
 
    ```json
    [

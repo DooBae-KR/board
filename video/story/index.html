@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<style>
+@font-face{font-family:P;src:url(../fonts/Pretendard-Regular.otf);font-weight:400}
+@font-face{font-family:P;src:url(../fonts/Pretendard-Bold.otf);font-weight:700}
+*{box-sizing:border-box;margin:0}
+html,body{width:1080px;height:1920px;overflow:hidden;background:#0b1020}
+body{font-family:P,'WenQuanYi Zen Hei',sans-serif;color:#fff;word-break:keep-all;overflow-wrap:anywhere}
+#stage{position:relative;width:1080px;height:1920px;background:radial-gradient(1200px 900px at 20% 10%,#2a1b6e 0%,transparent 60%),radial-gradient(1000px 900px at 90% 90%,#0d4d57 0%,transparent 55%),#0b1020;overflow:hidden}
+#bar{position:absolute;left:60px;right:60px;top:90px;height:8px;border-radius:4px;background:rgba(255,255,255,.15)}
+#bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#7c5cff,#22d3a6);width:0}
+.scene{position:absolute;inset:0;padding:0 70px;display:none}
+/* 인스타 릴스 UI가 가리는 하단·우측을 피해 y 200~1480, x 70~930 안에 둔다 */
+.safe{position:absolute;left:70px;right:150px;top:190px;bottom:600px;display:flex;flex-direction:column;justify-content:center;gap:34px}
+[data-s]{opacity:0}
+.kick{font-size:44px;font-weight:700;color:#22d3a6;letter-spacing:.02em}
+.h1{font-size:92px;line-height:1.22;font-weight:700;white-space:pre-line;letter-spacing:-.02em}
+.h1 em{font-style:normal;color:#ff6b81}
+.cap{font-size:60px;line-height:1.3;font-weight:700;white-space:pre-line}
+.cap small{display:block;font-size:44px;color:#22d3a6;margin-bottom:8px}
+.sub{font-size:48px;color:#c9c9e8}
+.big{font-size:150px;line-height:1.05;font-weight:700;letter-spacing:-.04em;background:linear-gradient(90deg,#9b8cff,#22d3a6);-webkit-background-clip:text;color:transparent}
+.chips{display:flex;flex-wrap:wrap;gap:18px}
+.chip{font-size:44px;font-weight:700;padding:16px 30px;border-radius:999px;background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.22)}
+.chip.a{background:rgba(124,92,255,.35);border-color:#9b8cff}
+.card{border-radius:36px;background:#fff;color:#222;padding:44px 48px}
+.card .lab{font-size:36px;color:#888;margin-bottom:22px;font-weight:700}
+.plain{font-family:'DejaVu Sans Mono','WenQuanYi Zen Hei',monospace;font-size:42px;line-height:1.5;white-space:pre}
+.plain .cell{color:#e0334c;font-weight:700}
+.term{border-radius:30px;background:#0e1117;border:2px solid #2c3446;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.term .top{height:64px;background:#1a2030;display:flex;align-items:center;gap:14px;padding:0 26px}
+.term .top i{width:22px;height:22px;border-radius:50%;display:block}
+.term .body{padding:34px 36px;font-family:'DejaVu Sans Mono','WenQuanYi Zen Hei',monospace;font-size:41px;line-height:1.55;min-height:300px;white-space:pre;color:#d7e0f5}
+.term .prompt{color:#22d3a6}.term .hl{color:#ffd166}.term .dim{color:#7d8aa8}
+.cursor{display:inline-block;width:.55em;height:1.05em;background:#d7e0f5;vertical-align:-.15em}
+.badge{align-self:flex-start;font-size:38px;font-weight:700;padding:10px 26px;border-radius:14px;background:#22d3a6;color:#062b25}
+.steps{display:flex;flex-direction:column;gap:22px}
+.step{font-size:68px;font-weight:700;display:flex;align-items:center;gap:26px}
+.step b{width:96px;height:96px;border-radius:50%;background:#7c5cff;display:flex;align-items:center;justify-content:center;font-size:56px;flex:none}
+.kw{display:inline-block;font-size:150px;font-weight:700;padding:10px 54px 24px;border-radius:44px;background:linear-gradient(135deg,#7c5cff,#22d3a6);color:#fff;align-self:flex-start;transform-origin:left center}
+.feats{display:flex;flex-direction:column;gap:18px}.feat{font-size:52px;font-weight:700;padding-left:28px;border-left:8px solid #22d3a6}.stars{font-size:190px;font-weight:700;color:#ffd166;line-height:1}.step.why{font-size:58px}.note{font-size:40px;color:#c9c9e8}
+</style></head>
+<body><div id="stage"><div id="bar"><i></i></div></div>
+<script>
+// 장면 구간(초): 문제 → 왜 그럴까 → 레포 추천 → 스타 → 팔로우·댓글
+const SC=[[0,6],[6,14],[14,26],[26,34],[34,44]];
+const END=44;
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const ease=p=>1-Math.pow(1-p,3);
+let S=null;
+function fmt(n){return n>=1000?(n/1000).toFixed(1)+'k':String(n)}
+function init(story){
+ S=story;const st=document.getElementById('stage');
+ st.querySelectorAll('.scene').forEach(e=>e.remove());
+ const sc=(i,html)=>{const d=document.createElement('div');d.className='scene';d.id='sc'+i;d.innerHTML='<div class="safe">'+html+'</div>';st.appendChild(d)};
+ const a=(s,d=.5)=>`data-s="${(s*.6).toFixed(2)}" data-d="${Math.min(d,.25)}"`;
+ const {problem:p,why:w,repo:r,stars:t,cta:c}=story;
+ sc(1,`<div class="kick" ${a(0)}>${esc(p.k)}</div><div class="h1" ${a(.25,.6)}>${p.h}</div>`);
+ sc(2,`<div class="kick" ${a(0)}>${esc(w.k)}</div><div class="steps">${w.points.map((x,i)=>`<div class="step why" ${a(.6+i*1.1,.4)}><b>${i+1}</b>${esc(x)}</div>`).join('')}</div>`);
+ const fs=r.name.length>18?84:r.name.length>12?110:150;
+ sc(3,`<div class="kick" ${a(0)}>${esc(r.k)}</div><div class="big" style="font-size:${fs}px" ${a(.3,.7)}>${esc(r.name)}</div><div class="sub" ${a(1)}>${esc(r.sub)}</div><div class="chips">${r.chips.map((x,i)=>`<div class="chip ${i==0?'a':''}" ${a(1.6+i*.3,.4)}>${esc(x)}</div>`).join('')}</div><div class="feats">${r.features.map((x,i)=>`<div class="feat" ${a(3.2+i*1.4,.5)}>${esc(x)}</div>`).join('')}</div>`);
+ sc(4,`<div class="kick" ${a(0)}>${esc(t.k)}</div><div class="stars" ${a(.3,.5)}>★ <span id="cnt">0</span></div><div class="sub" ${a(.6)}>${esc(t.label)} (${esc(t.asof)})</div><div class="cap" ${a(3,.6)}>${esc(t.verdict)}</div><div class="note" ${a(4.4,.5)}>${esc(t.caveat)}</div>`);
+ sc(5,`<div class="kick" ${a(0)}>${esc(c.k)}</div><div class="steps">${c.steps.map((x,i)=>`<div class="step" ${a(.4+i*.7,.4)}><b>${i+1}</b>${esc(x)}</div>`).join('')}</div><div class="kw" ${a(3,.5)}>${esc(story.keyword)}</div><div class="note" ${a(4.2,.5)}>${esc(c.note)}</div>`);
+ setT(0);
+}
+function setT(t){
+ document.querySelector('#bar i').style.width=(clamp(t/END)*100)+'%';
+ SC.forEach(([s,e],i)=>{
+  const el=document.getElementById('sc'+(i+1));if(!el)return;
+  const on=t>=s&&t<e;el.style.display=on?'block':'none';if(!on)return;
+  const tl=t-s,dur=e-s;
+  el.style.opacity=clamp(Math.min(1,(dur-tl)/.12));
+  el.querySelectorAll('[data-s]').forEach(n=>{
+   const q=ease(clamp((tl-parseFloat(n.dataset.s))/parseFloat(n.dataset.d)));
+   n.style.opacity=q;n.style.transform=`translateY(${(1-q)*20}px)`;
+  });
+  if(i===3){const k=ease(clamp((tl-.3)/1.6));document.getElementById('cnt').textContent=fmt(Math.round(S.stars.value*k))}
+ });
+}
+</script></body></html>
