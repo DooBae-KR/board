@@ -12,3 +12,6 @@ netlify/generated/
 # 국장 추천 기록·KIS 토큰 캐시 (개인 투자 정보)
 .kr-picks.json
 .kis-token.json
+video/fonts/
+video/markitdown/stills/
+*.mp4
