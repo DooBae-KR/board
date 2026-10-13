@@ -9,6 +9,7 @@ import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes, ti
 import { readFile } from 'node:fs/promises';
 import { HarnessError, MOTION_STATES, ID_RE, looksSecret } from '../scripts/lib/harness.js';
 import { runReport } from '../scripts/lib/report.js';
+import { summarizeIgbot } from './igbot-summary.js';
 import { verifyPassword, USERNAME_RE } from '../scripts/lib/password.js';
 
 const COLORS = ['lavender', 'pink', 'mint', 'peach', 'sky'];
@@ -241,6 +242,15 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
       return send(res, 200, body, { 'Content-Type': 'application/json; charset=utf-8', ETag: etag });
     },
 
+    /** 인스타 DM 퍼널 집계와 경고 (사람 전용). 브라우저는 Supabase에 닿지 않고 이 응답만 쓴다 */
+    async 'GET /api/harness/igbot'(req, res, url) {
+      const d = Number(url.searchParams.get('days') ?? 7);
+      const days = Number.isInteger(d) && d >= 1 && d <= 30 ? d : 7;
+      const raw = await store.igbotRaw?.(days);
+      if (!raw) return send(res, 200, { configured: false }, { 'Cache-Control': 'no-store' });
+      return send(res, 200, { configured: true, ...summarizeIgbot(raw, { days }) }, { 'Cache-Control': 'no-store' });
+    },
+
     async 'POST /api/harness/report'(req, res) {
       const out = await runReport(store, await readJson(req));
       return send(res, 200, out);
@@ -319,7 +329,7 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
   };
 
   /** 사람(DASHBOARD_TOKEN)만 쓸 수 있는 동작 */
-  const dashboardOnly = new Set(['POST /api/harness/tasks', 'POST /api/harness/holdings']);
+  const dashboardOnly = new Set(['POST /api/harness/tasks', 'POST /api/harness/holdings', 'GET /api/harness/igbot']);
 
   async function handle(req, res, url) {
     const path = url.pathname.replace(/\/+$/, '') || '/';

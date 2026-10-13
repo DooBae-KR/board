@@ -19,6 +19,18 @@ export function createStore(db) {
       return { sections, widgets, agents, events, motions, tasks, holdings };
     },
 
+    /** 인스타 DM 봇 집계 원본(최근 N일 이벤트 + 토큰 만료 정보). 토큰 값은 읽지 않는다. 테이블이 없거나 실패하면 null */
+    async igbotRaw(days = 7) {
+      const since = encodeURIComponent(new Date(Date.now() - Math.max(days, 2) * 86400_000).toISOString());
+      try {
+        const [events, tokens] = await Promise.all([
+          db.select('igbot_events', `select=at,lang,event,detail&at=gte.${since}&order=at.desc&limit=10000`),
+          db.select('igbot_tokens', 'select=lang,expires_at,updated_at'),
+        ]);
+        return { events, tokens };
+      } catch { return null; }
+    },
+
     async getAgent(id) {
       return (await db.select('harness_agents', `select=*&${db.eq('id', id)}`))[0] ?? null;
     },

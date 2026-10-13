@@ -303,6 +303,17 @@ h1{font-family:var(--f-display);font-weight:400;font-size:30px;margin:2px 0 0;li
 .gap{margin-top:6px}.gap>.ghead{margin-bottom:12px}
 .field textarea.plain{font-family:inherit;font-size:inherit;min-height:84px}
 .hint2{color:var(--muted);font-size:12px;margin:0}
+.alerts{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px;padding:0;list-style:none}
+.alerts li{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 12px;font-size:13px;border:1px solid var(--warn);color:var(--warn);background:var(--surface)}
+.alerts li.bad{border-color:var(--bad);color:var(--bad);font-weight:700}
+.alerts li::before{content:"!";display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;border:1.5px solid currentColor;font-size:11px;font-weight:700}
+.funnel{grid-column:1/-1}
+.funnel table{width:100%;min-width:520px;white-space:nowrap;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.funnel th,.funnel td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--line)}
+.funnel th:first-child,.funnel td:first-child{text-align:left}
+.funnel th{color:var(--muted);font-weight:400;font-size:12px}
+.funnel td.err-n{color:var(--bad);font-weight:700}
+.funnel .tbl{overflow-x:auto}
 
 .notice{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px 10px 18px;border-radius:16px;font-size:14px;z-index:60;display:flex;align-items:center;gap:12px;max-width:min(560px,calc(100% - 24px))}
 .notice button{border:1px solid currentColor;background:none;color:inherit;border-radius:999px;padding:3px 12px;font-size:13px;white-space:nowrap}
@@ -476,7 +487,7 @@ const hex = c => (/^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : null);
 const agentColor = a => hex(a.color) || FALLBACK_COLORS[[...a.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997, 0) % FALLBACK_COLORS.length];
 const ago = iso => { if (!iso) return ''; const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000); if (s < 60) return '방금'; if (s < 3600) return Math.floor(s / 60) + '분 전'; if (s < 86400) return Math.floor(s / 3600) + '시간 전'; return Math.floor(s / 86400) + '일 전'; };
 
-const state = { budgetMonth: null, data: { sections: [], widgets: [], agents: [], events: [], tasks: [] }, chatAgent: null, drafts: {}, loaded: false, active: 'overview', filter: 'all', agentView: 'status', etag: null };
+const state = { budgetMonth: null, data: { sections: [], widgets: [], agents: [], events: [], tasks: [] }, chatAgent: null, drafts: {}, loaded: false, active: 'overview', filter: 'all', agentView: 'status', etag: null, igbot: null };
 const sec = id => state.data.sections.find(s => s.id === id);
 const kids = pid => state.data.sections.filter(s => (s.parent_id || null) === pid || (pid === null && s.parent_id && !sec(s.parent_id)));
 const agentsIn = sid => state.data.agents.filter(a => a.section_id === sid);
@@ -633,16 +644,44 @@ function snsCard(cls, name, tag, hit, emptyMsg, seed) {
     ${idx ? `<div class="gauge"><span>활동지수</span><div class="track" role="meter" aria-label="활동지수" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${iv}"><div class="fill" style="width:${iv}%"></div></div><em>${iv}/100</em></div>${idx.note ? `<p class="hint2">${esc(idx.note)}</p>` : ''}` : '<p class="hint2">활동지수가 아직 없어요.</p>'}
     ${rest.length ? `<div class="minis">${rest.map(i => `<span>${esc(i.label)} <b>${fmt(i.value)}${esc(i.unit || '')}</b></span>`).join('')}</div>` : ''}</article>`;
 }
+/* ---------- 인스타 DM 퍼널·경고: 서버 API(/api/harness/igbot)가 igbot_* 를 집계해 준다. 브라우저는 Supabase에 닿지 않는다 ---------- */
+const IG_COLS = [['matched', '댓글 매칭'], ['link_direct', '링크 즉시'], ['asked', '팔로우 요청'], ['click_ok', '버튼 성공'], ['click_retry', '미팔로우 재안내'], ['error', '오류']];
+const IG_LANG = { ko: '한국어', en: 'English' };
+async function loadIgbot() {
+  try {
+    const res = await fetch('/api/harness/igbot?days=7', { cache: 'no-store' });
+    if (!res.ok) return;
+    const out = await res.json(), prev = JSON.stringify(state.igbot);
+    state.igbot = out;
+    if (JSON.stringify(out) !== prev && state.loaded && state.active === 'overview') render();
+  } catch { /* 다음 주기에 다시 */ }
+}
+function igAlertsHTML() {
+  const al = state.igbot?.alerts || [];
+  if (!al.length) return '';
+  return `<ul class="alerts" role="list" aria-label="인스타 봇 경고">${al.map(a => `<li class="${a.level === 'bad' ? 'bad' : ''}">인스타 ${esc(IG_LANG[a.lang] || '웹훅')}: ${esc(a.message)}</li>`).join('')}</ul>`;
+}
+function igFunnelHTML() {
+  const g = state.igbot, head = `<div class="wh"><h3>인스타 DM 퍼널</h3><span class="chip">최근 ${g?.days || 7}일</span><span class="wt">댓글 → DM</span></div>`;
+  if (!g || !g.configured) return `<article class="w sns ig funnel">${head}<p class="empty">${g ? '봇 집계 테이블을 읽지 못했어요. igbot 마이그레이션이 적용됐는지 확인하세요.' : '불러오는 중…'}</p></article>`;
+  const langs = Object.keys(g.accounts);
+  if (!langs.length) return `<article class="w sns ig funnel">${head}<p class="empty">아직 집계가 없어요. 릴스에 댓글이 달리면 여기에 나타나요.</p></article>`;
+  const row = (name, c) => `<tr><td>${esc(name)}</td>${IG_COLS.map(([k]) => `<td${k === 'error' && c[k] ? ' class="err-n"' : ''}>${fmt(c[k])}</td>`).join('')}</tr>`;
+  const exp = langs.map(l => g.tokens[l]?.daysLeft == null ? '' : `<span>${IG_LANG[l]} 토큰 <b>${g.tokens[l].daysLeft < 0 ? '만료됨' : g.tokens[l].daysLeft + '일 남음'}</b></span>`).join('');
+  return `<article class="w sns ig funnel">${head}<div class="tbl"><table><thead><tr><th scope="col">계정</th>${IG_COLS.map(([, l]) => `<th scope="col">${l}</th>`).join('')}</tr></thead><tbody>${langs.map(l => row(IG_LANG[l], g.accounts[l])).join('')}${langs.length > 1 ? row('합계', g.total) : ''}</tbody></table></div>
+    ${exp ? `<div class="minis">${exp}</div>` : ''}<p class="hint2">링크 즉시 = 이미 팔로우 중이라 바로 보낸 DM, 팔로우 요청 = 팔로우 버튼을 안내한 DM${g.errorCount ? ` · 오류 ${g.errorCount}건은 서버 로그에서 확인하세요` : ''}</p></article>`;
+}
 function homeHTML() {
   const pick = fn => state.data.widgets.filter(fn).map(w => ({ w, s: sec(w.section_id) || {} }));
   const budget = pick(BUDGET_W), study = pick(STUDY_W), yt = pick(YT_W)[0], ig = pick(IG_W)[0], g = groupAgents();
   const panel = (id, title, sub, body, more = '') => `<section class="panel" aria-labelledby="${id}"><div class="ghead"><h2 id="${id}">${title}</h2><small>${sub}</small>${more}</div>${body}</section>`;
   return `<div class="head"><div><div class="eyebrow">${new Date().toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}</div><h1>내 현황</h1></div>
     <div class="pulse" role="group" aria-label="에이전트 상태 바로가기"><span class="empty">에이전트</span>${Object.keys(AG).map(k => `<button type="button" data-act="agents-go" data-v="${k}"><i style="background:${AG[k].c}"></i>${AG[k].l} ${g[k].length}</button>`).join('')}</div></div>
+  ${igAlertsHTML()}
   ${panel('p-budget', '가계부', '예산도우미가 매월 갱신해요 (정산 제외)', budget.length ? `<div class="grid">${budget.map(widgetCard).join('')}</div>` : noData('가계부 위젯이 아직 없어요. 예산도우미(budget-advisor)가 월간 점검을 마치면 지출·분류·절감 가능액이 여기에 나타나요.'), '<button type="button" class="ghost" data-nav="budget" style="margin-left:auto">자세히 보기</button>')}
   ${panel('p-stocks', '나의 주식수익률', '내가 넣은 매수·매도 기준 (세전)', stocksPanelBody(), (state.data.holdings || []).length ? '<button type="button" class="ghost" data-nav="stocks" style="margin-left:auto">자세히</button>' : '')}
   ${panel('p-study', '나의 학습정보', '스터디 플래너 기준', study.length ? `<div class="grid">${study.map(widgetCard).join('')}</div>` : `<div class="nodata"><img src="${sprite('book')}" alt=""><p><b>연결 전이에요.</b> 스터디요약(study-digest)이 '학습 현황' 위젯(이번 주 달성률, 가까운 D-day 등)을 보내면 여기에 나타나요. 지금은 우리 허브 앱의 스터디 화면에서 볼 수 있어요.</p></div>`)}
-  ${panel('p-sns', '유튜브 · 인스타그램', '구독자·팔로워와 활동지수', `<div class="grid">${snsCard('yt', '유튜브', 'YOUTUBE', yt, '구독자 수는 YouTube Data API 키가 있어야 가져올 수 있어요. 키는 서버 환경변수에만 두고, 에이전트가 \'유튜브 현황\' 위젯(구독자, 활동지수)을 보내면 여기에 나타나요.', '내 유튜브 채널의 구독자 수와 최근 업로드·조회 활동으로 활동지수(0~100)를 매일 계산해서 \'유튜브 현황\' 위젯(kpi: 구독자, 활동지수)으로 보고한다.')}${snsCard('ig', '인스타그램', 'INSTAGRAM', ig, '팔로워 수는 인스타그램 Graph API 토큰으로 가져와요. 에이전트가 \'인스타 현황\' 위젯(팔로워, 활동지수)을 보내면 여기에 나타나요.', '내 인스타그램 계정의 팔로워 수와 최근 게시물·참여 활동으로 활동지수(0~100)를 매일 계산해서 \'인스타 현황\' 위젯(kpi: 팔로워, 활동지수)으로 보고한다.')}</div>`)}`;
+  ${panel('p-sns', '유튜브 · 인스타그램', '구독자·팔로워와 활동지수', `<div class="grid">${snsCard('yt', '유튜브', 'YOUTUBE', yt, '구독자 수는 YouTube Data API 키가 있어야 가져올 수 있어요. 키는 서버 환경변수에만 두고, 에이전트가 \'유튜브 현황\' 위젯(구독자, 활동지수)을 보내면 여기에 나타나요.', '내 유튜브 채널의 구독자 수와 최근 업로드·조회 활동으로 활동지수(0~100)를 매일 계산해서 \'유튜브 현황\' 위젯(kpi: 구독자, 활동지수)으로 보고한다.')}${snsCard('ig', '인스타그램', 'INSTAGRAM', ig, '팔로워 수는 인스타그램 Graph API 토큰으로 가져와요. 에이전트가 \'인스타 현황\' 위젯(팔로워, 활동지수)을 보내면 여기에 나타나요.', '내 인스타그램 계정의 팔로워 수와 최근 게시물·참여 활동으로 활동지수(0~100)를 매일 계산해서 \'인스타 현황\' 위젯(kpi: 팔로워, 활동지수)으로 보고한다.')}${igFunnelHTML()}</div>`)}`;
 }
 
 /* ---------- 나의 주식수익률: 사람이 넣은 거래(harness_holdings)로 계산한다. 세전, 수수료·세금 미반영 ---------- */
@@ -1181,7 +1220,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { po
 document.addEventListener('click', () => { pollMs = 5000; });
 
 state.active = decodeURIComponent(location.hash.slice(1)) || 'overview';
-render(); poll(); schedule();
+render(); poll(); schedule(); loadIgbot(); setInterval(() => { if (!document.hidden) loadIgbot(); }, 60000);
 </script>
 </body>
 </html>

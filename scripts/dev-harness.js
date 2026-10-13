@@ -15,7 +15,21 @@ const { agents, errors } = checkAgents(root);
 if (errors.length) { console.error(errors.join('\n')); process.exit(1); }
 
 const names = [...new Set(agents.flatMap((a) => [a.parent_department, a.department]).filter((n) => !isLobby(n)))];
-const store = createMemoryStore({ sections: names.map((name) => ({ name })) });
+// 인스타 DM 퍼널·경고 미리보기용 목 데이터 (실제 igbot_* 와 무관). IGBOT_MOCK=none 이면 비워 둔다
+const ago = (h) => new Date(Date.now() - h * 3600_000).toISOString();
+const mk = (lang, event, n, h, detail) => Array.from({ length: n }, (_, i) => ({ at: ago(h + i), lang, event, detail: detail ?? null }));
+const igbot = process.env.IGBOT_MOCK === 'none' ? null : {
+  events: [
+    ...mk('ko', 'matched', 42, 1), ...mk('ko', 'link_direct', 14, 2), ...mk('ko', 'asked', 28, 2), ...mk('ko', 'click_ok', 17, 3), ...mk('ko', 'click_retry', 6, 3),
+    ...mk('en', 'matched', 9, 5), ...mk('en', 'link_direct', 4, 6), ...mk('en', 'asked', 5, 6), ...mk('en', 'click_ok', 2, 7),
+    ...mk('ko', 'error', 1, 5, 'token refresh failed (ko): 400'), ...mk('-', 'error', 2, 3, 'fetch failed'),
+  ],
+  tokens: [
+    { lang: 'ko', expires_at: new Date(Date.now() + 4.5 * 86400_000).toISOString(), updated_at: ago(60) },
+    { lang: 'en', expires_at: new Date(Date.now() + 40 * 86400_000).toISOString(), updated_at: ago(30) },
+  ],
+};
+const store = createMemoryStore({ sections: names.map((name) => ({ name })), igbot });
 for (const n of names) { // 상위 부서 연결
   const a = agents.find((x) => x.department === n && x.parent_department);
   if (a) store._db.sections.find((s) => s.name === n).parent_id = store._db.sections.find((s) => s.name === a.parent_department)?.id ?? null;

@@ -21,7 +21,7 @@
 - 중복 방지는 메모리 기반이라 재시작 시 초기화됩니다. 운영 시 DB(Redis 등) 권장.
 
 ## 대시보드
-- `.env`에 `DASHBOARD_TOKEN`을 설정하고 `https://<도메인>/dashboard?token=<토큰>` 접속 (토큰이 없으면 403)
+- `.env`에 `DASHBOARD_TOKEN`을 설정하고 `https://<도메인>/dashboard?token=<토큰>` 접속 (토큰이 없으면 403). 이 `/dashboard`는 메모리 집계라 Netlify(서버리스)에서는 쓸 수 없고 Docker/VPS 전용이다. Netlify에서는 `/harness` 홈의 인스타그램 영역(DM 퍼널·경고)을 본다
 - 표시 내용: 댓글→DM 전환 퍼널(계정별), 등록된 영상/레포 상태, 에이전트별 현재 상태·작업 지침·작업 로그·산출물
 - 에이전트(`.claude/agents/*`)는 작업 시작/완료 시 `node scripts/log-activity.js <agent> <start|done|fail|info> "메시지" [산출물]`로 `data/activity.jsonl`에 기록하고, 대시보드가 이를 읽어 표시합니다.
 - 댓글/DM 집계는 메모리 기반이라 서버 재시작 시 초기화됩니다.
