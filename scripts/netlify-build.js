@@ -20,6 +20,15 @@ writeFileSync(at('netlify/generated/repos.mjs'), `// scripts/netlify-build.js가
 mkdirSync(at('dist/assets'), { recursive: true });
 cpSync(at('src/assets/char'), at('dist/assets/char'), { recursive: true });
 writeFileSync(at('dist/index.html'), `<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>하네스</title><p>하네스 대시보드는 <a href="/harness">/harness</a>에서 로그인합니다.</p>\n`);
+// 정적 법적 페이지(/privacy, /terms, /data-deletion): Meta 앱을 Live로 전환할 때 필요하다.
+// 문의처는 환경변수 CONTACT_EMAIL이 있으면 이메일, 없으면 운영 인스타그램 DM으로 안내한다(주소를 저장소에 적지 않는다).
+const contact = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(process.env.CONTACT_EMAIL ?? '')
+  ? `이메일: <a href="mailto:${process.env.CONTACT_EMAIL}">${process.env.CONTACT_EMAIL}</a>`
+  : '이 서비스를 운영하는 인스타그램 계정으로 DM을 보내 주세요.';
+for (const n of ['privacy', 'terms', 'data-deletion']) {
+  mkdirSync(at('dist', n), { recursive: true });
+  writeFileSync(at('dist', n, 'index.html'), readFileSync(at('site', `${n}.html`), 'utf8').replaceAll('{{CONTACT}}', contact));
+}
 console.log(`netlify-build: 영상 ${repos.length}개, 스프라이트 ${sprites.length}개, 페이지 ${readFileSync(at('src/harness.html')).length}바이트`);
 
 // 미리보기·브랜치 배포가 운영 DB를 건드리지 않도록 운영 배포에서만 동기화한다.

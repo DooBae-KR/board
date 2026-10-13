@@ -25,6 +25,23 @@ export function createApi({ igUserId, token }) {
   }
 
   return {
+    // 이 계정의 최근 게시물(미디어 ID·주소). 웹훅이 오지 않아도 미디어 ID를 알 수 있다
+    async listMedia(limit = 25) {
+      const r = await graph(`${igUserId}/media?fields=id,permalink,timestamp&limit=${limit}`);
+      return r.data ?? [];
+    },
+    // 게시물의 최근 댓글(sinceMs 이후). 웹훅이 놓친 댓글을 다시 줍는 용도. 한 번에 최대 maxPages*50개
+    async listComments(mediaId, sinceMs, maxPages = 2) {
+      const out = [];
+      let path = `${mediaId}/comments?fields=id,text,timestamp,from&limit=50`;
+      for (let page = 0; page < maxPages && path; page++) {
+        const r = await graph(path);
+        for (const c of r.data ?? []) if (!c.timestamp || Date.parse(c.timestamp) >= sinceMs) out.push(c);
+        const oldest = r.data?.at(-1)?.timestamp;
+        path = r.paging?.next && !(oldest && Date.parse(oldest) < sinceMs) ? r.paging.next.replace(`${GRAPH}/`, '') : null;
+      }
+      return out;
+    },
     // 사용자가 이 계정을 팔로우 중인지 확인
     async isFollowing(igsid) {
       const r = await graph(`${igsid}?fields=is_user_follow_business`);
