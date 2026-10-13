@@ -6,8 +6,8 @@
 
 ## 우리 앱 정보와 공식 문서 확인 사항 (2026-10-13 조회)
 
-- **Meta 앱 ID: `1109070718261713`** (비밀이 아닌 공개 값입니다). 앱 대시보드: https://developers.facebook.com/apps/1109070718261713/
-  - 대시보드에는 **Meta 앱 ID/시크릿**(설정 → 기본 설정)과, Instagram 제품 안의 **Instagram 앱 ID/시크릿**이 따로 있을 수 있습니다. 어느 쪽이 웹훅 서명 시크릿인지는 공식 문서가 "앱 시크릿"이라고만 써서 단정할 수 없습니다. 웹훅이 401로 거절되면 다른 쪽 시크릿을 `APP_SECRET`에 넣어 보세요.
+- **Meta 앱 ID: `1109070718261713`**, **Instagram 앱 ID: `1082443284780720`** (앱 이름 "비서-IG", 둘 다 비밀이 아닌 공개 값입니다. Instagram 앱 ID와 시크릿은 앱 대시보드의 *Instagram → API setup with Instagram login* 화면 맨 위에 있습니다). 앱 대시보드: https://developers.facebook.com/apps/1109070718261713/
+  - 대시보드에는 **Meta 앱 ID/시크릿**(설정 → 기본 설정)과, Instagram 제품 안의 **Instagram 앱 ID/시크릿**이 따로 있을 수 있습니다. 어느 쪽이 웹훅 서명 시크릿인지는 공식 문서가 "앱 시크릿"이라고만 써서 단정할 수 없습니다. **`APP_SECRET`에는 먼저 위 *Instagram 앱 시크릿 코드*(Instagram 설정 화면의 "표시" 버튼)를 넣고**, 웹훅이 401로 거절되면 Meta 앱 시크릿으로 바꿔 보세요.
 - **권한 이름**(확정): `instagram_business_basic`, `instagram_business_manage_comments`, `instagram_business_manage_messages`
 - **토큰**: 대시보드의 *Instagram > API setup with Instagram business login → Generate token*으로 만든 토큰은 **60일** 유효합니다. 갱신은 `GET https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token` — **발급 24시간 후부터, 만료 전에만** 가능합니다. 만료되면 갱신 불가(재발급).
 - **웹훅**: 콜백은 유효한 TLS 인증서의 HTTPS여야 합니다(Netlify는 해당). 계정 구독은 `POST https://graph.instagram.com/v25.0/<IG계정ID>/subscribed_apps?subscribed_fields=comments,messages`. **공식 문서: "웹훅을 받으려면 앱이 Live 모드여야 한다"**, 그리고 `comments` 필드는 **고급 액세스(Advanced Access)** 가 필요하다고 되어 있습니다. 또한 댓글 알림은 **공개 계정**이어야 옵니다.
