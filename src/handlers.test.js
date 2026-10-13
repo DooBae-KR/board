@@ -58,3 +58,14 @@ test('영어 계정은 영어 메시지, 알 수 없는 계정은 무시', async
   await none.handle({ entry: [{ id: 'unknown', changes: [{ field: 'comments', value: { id: 'c10', text: '링크', from: { id: 'u1' }, media: { id: 'm1' } } }] }] });
   assert.equal(none.sent.length, 0);
 });
+
+test('등록되지 않은 게시물의 댓글은 게시물 ID만 기록하고 반응하지 않는다', async () => {
+  const { snapshot } = await import('./stats.js');
+  const { sent, handle } = setup(true);
+  await handle(comment('c-un', '아무 말이나 비밀댓글내용', 'media-unknown-777'));
+  assert.equal(sent.length, 0);
+  const last = snapshot().recent[0];
+  assert.equal(last.event, 'unmatched');
+  assert.equal(last.detail, 'media:media-unknown-777');
+  assert.equal(JSON.stringify(snapshot().recent).includes('비밀댓글내용'), false);
+});

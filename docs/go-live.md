@@ -127,6 +127,7 @@ npm run bot:check -- --online --url https://<사이트>  # + 웹훅 핸드셰이
    ```
 
    응답의 `data[]` 에서 방금 올린 영상의 `permalink`/`caption` 으로 구분해 **`id`** 를 복사합니다(숫자). 영어 계정은 `IG_EN_*` 로 같은 호출. 같은 영상이라도 계정마다 ID가 다릅니다.
+   **더 쉬운 방법 (토큰 없이):** 영상을 올린 뒤 **앱 역할에 등록한 다른 계정으로 그 영상에 댓글을 하나 답니다**(키워드가 아니어도 됩니다). 봇은 등록되지 않은 게시물의 댓글이면 반응하지 않고 `igbot_events`에 `unmatched` 이벤트와 `detail = media:<게시물 ID>`만 남깁니다(댓글 내용·작성자는 저장하지 않음). Supabase에서 `select at, lang, detail from igbot_events where event = 'unmatched' order by at desc` 로 보거나 Claude Code에 "unmatched 이벤트의 미디어 ID 알려줘"라고 요청하세요. 이 방법은 웹훅이 실제로 도착한다는 확인도 겸합니다.
 3. `data/repos.json` 의 예시 항목을 지우고 실제 값으로 바꿉니다(`docs/script-markitdown.md` 하단 예시 참고).
 
    ```json

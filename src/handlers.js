@@ -11,7 +11,12 @@ export function createHandlers({ accounts, loadRepos, once = memoryOnce }) {
   async function onComment(acc, selfId, { id, text, from, media }) {
     if (from?.id === selfId || !(await once(`c:${id}`))) return;
     const repo = matchRepo(loadRepos(), media?.id, text);
-    if (!repo) return;
+    if (!repo) {
+      // 등록되지 않은 게시물/키워드의 댓글: 게시물 ID만 기록한다(댓글 내용·작성자는 저장하지 않음).
+      // 새 영상을 올린 뒤 댓글 하나만 달면 여기서 미디어 ID를 알 수 있다 (docs/go-live.md 9단계)
+      if (media?.id) record(acc.lang, 'unmatched', { detail: `media:${String(media.id).slice(0, 40)}` });
+      return;
+    }
     const t = messages[acc.lang];
     record(acc.lang, 'matched', { repoId: repo.id });
 
