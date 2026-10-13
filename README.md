@@ -21,7 +21,7 @@
 - 중복 방지는 메모리 기반이라 재시작 시 초기화됩니다. 운영 시 DB(Redis 등) 권장.
 
 ## 대시보드
-- `.env`에 `DASHBOARD_TOKEN`을 설정하고 `https://<도메인>/dashboard?token=<토큰>` 접속 (토큰이 없으면 403)
+- `.env`에 `DASHBOARD_TOKEN`을 설정하고 `https://<도메인>/dashboard?token=<토큰>` 접속 (토큰이 없으면 403). 이 `/dashboard`는 메모리 집계라 Netlify(서버리스)에서는 쓸 수 없고 Docker/VPS 전용이다. Netlify에서는 `/harness` 홈의 인스타그램 영역(DM 퍼널·경고)을 본다
 - 표시 내용: 댓글→DM 전환 퍼널(계정별), 등록된 영상/레포 상태, 에이전트별 현재 상태·작업 지침·작업 로그·산출물
 - 에이전트(`.claude/agents/*`)는 작업 시작/완료 시 `node scripts/log-activity.js <agent> <start|done|fail|info> "메시지" [산출물]`로 `data/activity.jsonl`에 기록하고, 대시보드가 이를 읽어 표시합니다.
 - 댓글/DM 집계는 메모리 기반이라 서버 재시작 시 초기화됩니다.
@@ -98,7 +98,7 @@ curl -X POST https://<서버>/api/harness/sections -H "Authorization: Bearer $HA
 # 위젯 데이터 보내기
 curl -X PUT https://<서버>/api/harness/widgets -H "Authorization: Bearer $HARNESS_API_TOKEN" \
   -H 'Content-Type: application/json' -d '{"section":"법무팀","title":"계약 현황","type":"kpi","data":{"items":[{"label":"검토 중","value":4,"unit":"건"}]}}'
-# 대시보드 '작업 지시' 대화창에서 보낸 작업을 에이전트가 가져가기
+# 요청함(harness_tasks)에 쌓인 작업을 에이전트가 가져가기 (대시보드 대화창은 없앴고 API로 넣은 작업만 있다)
 node scripts/harness-report.js lumi next      # 가져오면 '진행 중', done/fail 보고 때 '완료'/'실패'
 ```
 
@@ -110,3 +110,6 @@ Supabase 없이 화면만 보려면 `node scripts/dev-harness.js` → `http://12
 2. Environment variables: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`(Secret), `DASHBOARD_TOKEN`, `HARNESS_API_TOKEN`, 그리고 인스타 봇용 `VERIFY_TOKEN`, `APP_SECRET`, `IG_KO_USER_ID`, `IG_KO_ACCESS_TOKEN`(영어 계정은 `IG_EN_*`)
 3. 배포 후 `https://samgukji.netlify.app/harness`에서 `DASHBOARD_TOKEN`을 입력해 로그인. 에이전트의 `HARNESS_API_URL`은 `https://samgukji.netlify.app`
 4. 메타 앱의 웹훅 콜백 URL을 `https://samgukji.netlify.app/webhook`으로 바꾸고, 확인 토큰은 `VERIFY_TOKEN`과 같은 값으로 넣기
+
+## 대시보드에서 Claude Code로 요청 보내기
+대시보드 상단 입력창의 글을 Claude Code 루틴(API 트리거)으로 보내 새 세션을 시작합니다. 설정과 안전 규칙은 [`docs/claude-code-request.md`](docs/claude-code-request.md)에 있습니다. 서버 환경변수 `ROUTINE_FIRE_URL`, `ROUTINE_FIRE_TOKEN`이 필요하고, 세션은 PR까지만 열며 머지는 사람이 합니다.

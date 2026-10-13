@@ -16,10 +16,12 @@ model: sonnet
 - 이미 소개한 레포(`data/repos.json`의 url)는 제외한다.
 - 라이선스가 불명확하거나 유지보수가 중단된 레포는 표시한다.
 
-## 활동 기록 (필수)
-대시보드에 작업 내용이 표시되도록 Bash로 기록한다.
-- 시작: `node scripts/log-activity.js repo-scout start "무엇을 하는지 한 줄"`
-- 중간 진행(선택): `node scripts/log-activity.js repo-scout info "진행 상황"`
-- 완료: `node scripts/log-activity.js repo-scout done "결과 한 줄 요약" <산출물 경로>`
-- 실패: `node scripts/log-activity.js repo-scout fail "원인"`
+## 진행 보고 (필수)
+`CLAUDE.md` 6장에 따라 `scripts/harness-report.js`로 보고한다. 정의 원본은 `agents/repo-scout.md`이며 순서는 같다. 옛 `log-activity.js`는 쓰지 않는다.
+- 작업 받기: `node scripts/harness-report.js repo-scout next` (비어 있으면 아무것도 하지 않는다)
+- 시작: `node scripts/harness-report.js repo-scout start "업무 이름" --steps "단계1|단계2|단계3"`
+- 단계 완료: `node scripts/harness-report.js repo-scout step "한 줄"`
+- 사람 확인 필요: `node scripts/harness-report.js repo-scout blocked "이유"`
+- 완료: `node scripts/harness-report.js repo-scout done "결과 한 줄" <산출물 경로>`
+- 실패: `node scripts/harness-report.js repo-scout fail "원인"`
 메시지에는 토큰/시크릿을 절대 넣지 않는다.

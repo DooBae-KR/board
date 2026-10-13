@@ -68,10 +68,10 @@ node scripts/harness-report.js <id> blocked "사람 확인이 필요한 이유"
 node scripts/harness-report.js <id> done    "결과 한 줄" [산출물 경로]
 node scripts/harness-report.js <id> fail    "원인"
 node scripts/harness-report.js <id> assign  "부서 이름" ["새 업무"]
-node scripts/harness-report.js <id> next            # 대시보드 '작업 지시'에서 받은 다음 작업을 가져온다
+node scripts/harness-report.js <id> next            # 요청함(harness_tasks)의 다음 작업을 가져온다 (대시보드에는 입력창이 없고 API로 넣은 작업만 있다)
 ```
 
-- 사람이 대시보드 '작업 지시' 대화창에 적은 작업은 에이전트별 요청함(`harness_tasks`)에 쌓인다. 에이전트는 업무를 시작하기 전에 `next`로 가장 오래된 작업 하나를 가져오고(상태 `진행 중`), 그 작업을 `start`로 보고한 뒤 `done`/`fail`로 닫는다(그때 요청함의 작업도 `완료`/`실패`가 된다). 비어 있으면 아무것도 하지 않는다.
+- 대시보드의 '작업 지시' 대화창과 에이전트 만들기 입력창은 없앴다(대시보드는 에이전트가 지금 어떤 업무를 하는지 상태만 보여준다. 새 에이전트는 Claude Code에서 `agents/<id>.md`로 만든다. 상단 입력창은 에이전트가 아니라 Claude Code 루틴으로 요청을 보낸다: `POST /api/harness/request`, `docs/claude-code-request.md`). 요청함(`harness_tasks`)에는 API(`POST /api/harness/tasks`)로 넣은 작업만 에이전트별로 쌓인다. 에이전트는 업무를 시작하기 전에 `next`로 가장 오래된 작업 하나를 가져오고(상태 `진행 중`), 그 작업을 `start`로 보고한 뒤 `done`/`fail`로 닫는다(그때 요청함의 작업도 `완료`/`실패`가 된다). 비어 있으면 아무것도 하지 않는다.
 - 업무를 시작하면 `start`, 단계를 끝낼 때마다 `step`, 끝나면 `done` 또는 `fail`. 사람 승인이 필요하면 `blocked`로 멈춘다.
 - 메시지에 토큰, 비밀번호, 개인 정보를 넣지 않는다.
 - 60분 넘게 보고가 없으면 대시보드가 "응답 없음"으로 표시한다.
@@ -86,13 +86,15 @@ node scripts/harness-report.js <id> next            # 대시보드 '작업 지�
 | `POST /harness/login` · `/harness/logout` | `harness_admins`의 아이디/비밀번호(계정이 있을 때) 또는 `DASHBOARD_TOKEN`(계정이 하나도 없을 때만) | 토큰을 POST 본문으로 받아 HttpOnly 세션 쿠키(12시간, AES-256-GCM으로 암호화. 비밀번호를 바꾸거나 계정을 지우면 무효)를 심고/지운다 |
 | `GET /api/harness` | 로그인 쿠키 또는 `DASHBOARD_TOKEN` Bearer | 전체 상태 (ETag) |
 | `POST /api/harness/report` | 대시보드(쿠키·Bearer) 또는 `HARNESS_API_TOKEN` Bearer | 진행 보고 (6장 종류와 같음) |
-| `POST /api/harness/tasks` | 대시보드(쿠키·Bearer)만 | 대화창의 작업 지시를 에이전트 요청함에 넣는다 (2000자, 에이전트당 대기 20개, 비밀값 거부) |
+| `POST /api/harness/tasks` | 대시보드(쿠키·Bearer)만 | 에이전트 요청함에 작업을 넣는다 (2000자, 에이전트당 대기 20개, 비밀값 거부). 대시보드 화면에는 입력창이 없어 API로만 쓴다 |
 | `GET /api/harness/tasks?agent=&status=` | 대시보드 또는 에이전트 | 요청함 조회 |
 | `POST /api/harness/tasks/next` | 에이전트(또는 대시보드 Bearer) | 에이전트가 가장 오래된 대기 작업 하나를 가져가 `진행 중`으로 바꾼다 |
 | `PATCH /api/harness/tasks/:id` | 대시보드 또는 에이전트 | 상태 변경: 대기→진행·취소, 진행→완료·실패·취소 |
 | `POST /api/harness/sections` | 대시보드 또는 에이전트 | 섹션 추가 → 메뉴에 동적으로 생김 |
 | `PUT /api/harness/widgets` | 대시보드 또는 에이전트 | 섹션 위젯 갱신 (섹션+제목이 같으면 덮어씀) |
 | `DELETE /api/harness/sections/:id` | 대시보드(쿠키·Bearer)만 | 섹션 삭제 |
+| `POST /api/harness/request` | 대시보드(쿠키·Bearer)만 | 입력한 요청을 Claude Code 루틴(API 트리거 `/fire`)으로 보내 새 세션을 시작하고 세션 주소만 돌려준다 (2000자, 비밀값 거부, 시간당 10번). 루틴 URL·토큰은 서버 환경변수 `ROUTINE_FIRE_URL`·`ROUTINE_FIRE_TOKEN`에만 둔다 |
+| `GET /api/harness/igbot?days=7` | 대시보드(쿠키·Bearer)만 | 인스타 DM 봇 퍼널(계정 ko/en별 댓글 매칭·링크 즉시·팔로우 요청·버튼 성공·미팔로우 재안내·오류)과 경고(토큰 만료 7일 이내, 토큰 갱신 실패, 최근 24시간 웹훅 오류)를 서버가 `igbot_events`/`igbot_tokens`에서 집계해 돌려준다. 토큰 값은 읽지도 내보내지도 않는다. `/harness` 홈의 인스타그램 영역이 쓴다 |
 | `GET /api/harness/motion/:id/:state` | 대시보드(쿠키·Bearer) | 렌더된 모션 클립(서명 URL로 이동) |
 
 토큰은 주소(URL)에 싣지 않는다(기록·히스토리·Referer에 남기 때문). 쿠키로 인증한 쓰기 요청은 같은 출처(`Sec-Fetch-Site`/`Origin`)만 받는다. `DASHBOARD_TOKEN`을 바꾸면 기존 세션이 모두 무효가 된다. 세션 서명 키는 서버에만 있고 브라우저로 내려가지 않는다.
@@ -101,8 +103,8 @@ node scripts/harness-report.js <id> next            # 대시보드 '작업 지�
 
 ### Netlify 배포 (samgukji.netlify.app)
 
-`netlify.toml`이 같은 API를 Netlify Function(`netlify/functions/harness.mjs`)으로 낸다. 빌드는 `scripts/netlify-build.js`(페이지·스프라이트 생성, 운영 배포에서만 `agents/*.md` 동기화). 환경변수는 Netlify 사이트 설정에 위 네 개와 봇용 `VERIFY_TOKEN`, `APP_SECRET`, `IG_KO_*`(영어 계정은 `IG_EN_*`)를 넣고 `SUPABASE_SERVICE_ROLE_KEY`는 Secret으로 표시한다. Netlify에는 디스크·상시 프로세스가 없으므로 인스타 DM 봇도 서버리스로 옮겼다: `/webhook`은 `netlify/functions/webhook.mjs`, 토큰 갱신은 12시간마다 도는 `refresh-tokens.mjs`(예약 함수)다. 토큰·웹훅 중복 방지·집계는 Supabase `igbot_tokens`/`igbot_seen`/`igbot_events`(service_role 전용, RLS 켬, 하네스의 `harness_` 접두사와는 별개)에 둔다. `data/repos.json`은 빌드 때 검증해 함수에 넣으므로 영상 등록은 커밋 → 재배포로 반영된다. 옛 `/dashboard`·`/api/stats`(메모리 집계)는 Netlify에 없다. 이 사이트는 예전에 DooBae-KR/smagukji에 연결돼 있었고, 그 저장소의 Netlify 연결을 끊은 뒤 이 저장소(`main`)에 연결한다. smagukji의 DB 테이블은 같은 Supabase 프로젝트에 있지만 2장 1항에 따라 건드리지 않는다.
+`netlify.toml`이 같은 API를 Netlify Function(`netlify/functions/harness.mjs`)으로 낸다. 빌드는 `scripts/netlify-build.js`(페이지·스프라이트 생성, 운영 배포에서만 `agents/*.md` 동기화). 환경변수는 Netlify 사이트 설정에 위 네 개와 봇용 `VERIFY_TOKEN`, `APP_SECRET`, `IG_KO_*`(영어 계정은 `IG_EN_*`)를 넣고 `SUPABASE_SERVICE_ROLE_KEY`는 Secret으로 표시한다. Netlify에는 디스크·상시 프로세스가 없으므로 인스타 DM 봇도 서버리스로 옮겼다: `/webhook`은 `netlify/functions/webhook.mjs`, 토큰 갱신은 12시간마다 도는 `refresh-tokens.mjs`(예약 함수)다. 토큰·웹훅 중복 방지·집계는 Supabase `igbot_tokens`/`igbot_seen`/`igbot_events`(service_role 전용, RLS 켬, 하네스의 `harness_` 접두사와는 별개)에 둔다. `data/repos.json`은 빌드 때 검증해 함수에 넣으므로 영상 등록은 커밋 → 재배포로 반영된다. 옛 `/dashboard`·`/api/stats`(메모리 집계, `src/dashboard.html`·`src/server.js`·`src/stats.js`)는 Netlify에서 쓸 수 없다(서버리스는 메모리가 유지되지 않아 집계가 매번 0이 된다). Docker/VPS 경로에서는 아직 쓰이므로 지우지 않는다. Netlify에서는 `/harness` 홈의 '인스타 DM 퍼널'과 경고 칩(`GET /api/harness/igbot`)으로 본다. 이 사이트는 예전에 DooBae-KR/smagukji에 연결돼 있었고, 그 저장소의 Netlify 연결을 끊은 뒤 이 저장소(`main`)에 연결한다. smagukji의 DB 테이블은 같은 Supabase 프로젝트에 있지만 2장 1항에 따라 건드리지 않는다.
 
 ## 7. 기존 기능과의 관계
 
-- `.claude/agents/*`(repo-scout 등)는 Claude Code 하위 에이전트 정의이며 기존 `scripts/log-activity.js` 기록을 그대로 쓴다. 하네스로 옮길 때는 `agents/`에 정의를 새로 만들고 보고를 `harness-report.js`로 바꾼다.
+- `.claude/agents/*`(repo-scout, script-writer, repo-registrar, publish-checker)는 Claude Code가 직접 읽는 하위 에이전트 정의라 지우지 않는다. 이 4종('GitHub 레포 소개 숏츠/릴스 → 인스타 댓글 DM 봇' 영상 제작 파이프라인: 발굴 → 대본 → 등록 → 점검)은 하네스로 편입됐다: 정의는 `agents/<id>.md`(부서 `영상제작팀`)에 있고, 두 곳 모두 진행 보고를 옛 `scripts/log-activity.js`가 아니라 `scripts/harness-report.js`(6장 순서)로 한다. 앞으로 다른 하위 에이전트를 옮길 때도 같은 방식을 따른다.

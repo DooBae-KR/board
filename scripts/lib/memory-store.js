@@ -5,7 +5,7 @@ import { SupabaseError } from './supabase.js';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const clone = (v) => structuredClone(v);
 
-export function createMemoryStore({ sections = [], agents = [], widgets = [], motions = [], tasks = [], admins = [], holdings = [] } = {}) {
+export function createMemoryStore({ sections = [], agents = [], widgets = [], motions = [], tasks = [], admins = [], holdings = [], igbot = null } = {}) {
   let tick = 0;
   let eventId = 0;
   const stamp = () => new Date(Date.now() + tick++).toISOString(); // 호출마다 달라지는 updated_at
@@ -32,6 +32,7 @@ export function createMemoryStore({ sections = [], agents = [], widgets = [], mo
         holdings: db.holdings.slice().sort((a, b) => (a.buy_date < b.buy_date ? 1 : -1)),
       });
     },
+    async igbotRaw() { return igbot ? clone(igbot) : null; }, // 개발·테스트용 목 데이터
     async getAgent(id) { return clone(db.agents.find((a) => a.id === id) ?? null); },
     async findSection(ref) { return clone(sectionBy(ref) ?? null); },
     async updateAgent(id, patch, ifUpdatedAt) {

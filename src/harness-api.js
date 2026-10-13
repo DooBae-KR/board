@@ -9,6 +9,7 @@ import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes, ti
 import { readFile } from 'node:fs/promises';
 import { HarnessError, MOTION_STATES, ID_RE, looksSecret } from '../scripts/lib/harness.js';
 import { runReport } from '../scripts/lib/report.js';
+import { summarizeIgbot } from './igbot-summary.js';
 import { verifyPassword, USERNAME_RE } from '../scripts/lib/password.js';
 
 const COLORS = ['lavender', 'pink', 'mint', 'peach', 'sky'];
@@ -17,6 +18,9 @@ const WIDGET_SIZES = ['full', 'half', 'third'];
 const STALE_MS = 60 * 60 * 1000; // 작업 중인데 60분 넘게 보고가 없으면 "응답 없음" (CLAUDE.md 6장)
 const BODY_LIMIT = 64 * 1024;
 const TASK_MAX = 2000;
+const REQUEST_MAX = 2000; // Claude Code 요청 글자 수 상한
+const REQUEST_PER_HOUR = 10;
+const ROUTINE_FIRE_RE = /^https:\/\/api\.anthropic\.com\/v1\/claude_code\/routines\/trig_[A-Za-z0-9]+\/fire$/;
 const QUEUE_MAX = 20; // 에이전트 한 명의 대기 작업 상한(한꺼번에 쌓이는 것을 막는다)
 const TASK_NEXT = { queued: ['claimed', 'cancelled'], claimed: ['done', 'failed', 'cancelled'] };
 const TASK_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/; // 줄바꿈·탭은 허용
@@ -203,7 +207,8 @@ function pageHeaders(nonce, mediaOrigin) {
  * @param {string} [o.supabaseUrl]       모션 클립 재생을 허용할 출처(CSP)
  * @param {(e: Error) => void} [o.onError]
  */
-export function createHarnessApi({ store, dashboardToken, agentToken, sprites, pageUrl, pageHtml, supabaseUrl, onError = console.error }) {
+export function createHarnessApi({ store, dashboardToken, agentToken, sprites, pageUrl, pageHtml, supabaseUrl, routine = {}, onError = console.error }) {
+  const fireTimes = []; // Claude Code 요청 시간당 제한(인스턴스 단위 보조 장치. 서버리스에서는 루틴 쪽 한도가 최종 방어선)
   /** 로그인 계정이 하나라도 있으면 아이디/비밀번호 로그인. 테이블이 없거나 조회가 실패하면 없는 것으로 본다(최초 설정용 토큰 로그인) */
   const hasAdmins = async () => !!(await store?.countAdmins().catch(() => 0));
   const mediaOrigin = supabaseUrl ? new URL(supabaseUrl).origin : '';
@@ -241,6 +246,15 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
       return send(res, 200, body, { 'Content-Type': 'application/json; charset=utf-8', ETag: etag });
     },
 
+    /** 인스타 DM 퍼널 집계와 경고 (사람 전용). 브라우저는 Supabase에 닿지 않고 이 응답만 쓴다 */
+    async 'GET /api/harness/igbot'(req, res, url) {
+      const d = Number(url.searchParams.get('days') ?? 7);
+      const days = Number.isInteger(d) && d >= 1 && d <= 30 ? d : 7;
+      const raw = await store.igbotRaw?.(days);
+      if (!raw) return send(res, 200, { configured: false }, { 'Cache-Control': 'no-store' });
+      return send(res, 200, { configured: true, ...summarizeIgbot(raw, { days }) }, { 'Cache-Control': 'no-store' });
+    },
+
     async 'POST /api/harness/report'(req, res) {
       const out = await runReport(store, await readJson(req));
       return send(res, 200, out);
@@ -269,6 +283,38 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
       if (await store.countQueued(b.agent) >= QUEUE_MAX) throw new HarnessError(`${agent.name}에게 대기 중인 작업이 ${QUEUE_MAX}개 있습니다. 먼저 처리하거나 취소해 주세요`, 409);
       const t = await store.createTask({ agent_id: b.agent, body });
       return send(res, 201, { id: t.id, status: t.status });
+    },
+
+    /** 대시보드 입력을 Claude Code 루틴(API 트리거)으로 보내 새 세션을 시작한다 (사람 전용). 루틴 토큰은 서버 환경변수에만 있다 */
+    async 'POST /api/harness/request'(req, res) {
+      if (!routine.url || !routine.token) throw new HarnessError('Claude Code 요청이 아직 연결되지 않았어요 (ROUTINE_FIRE_URL, ROUTINE_FIRE_TOKEN 설정 필요)', 503);
+      if (!ROUTINE_FIRE_RE.test(routine.url)) throw new HarnessError('ROUTINE_FIRE_URL 형식이 올바르지 않아요 (https://api.anthropic.com/v1/claude_code/routines/trig_…/fire)', 503);
+      const b = await readJson(req);
+      if (typeof b.text !== 'string') throw new HarnessError('text는 문자열이어야 합니다');
+      const text = b.text.trim();
+      if (!text) throw new HarnessError('요청 내용을 적어 주세요');
+      if (text.length > REQUEST_MAX) throw new HarnessError(`요청은 ${REQUEST_MAX}자 이하여야 합니다`);
+      if (TASK_CONTROL.test(text)) throw new HarnessError('요청에 쓸 수 없는 문자가 있습니다');
+      if (looksSecret(text)) throw new HarnessError('토큰·키로 보이는 값이 있어 보내지 않았습니다. 비밀값은 요청에 적지 마세요');
+      const now = Date.now();
+      while (fireTimes.length && now - fireTimes[0] > 3600_000) fireTimes.shift();
+      if (fireTimes.length >= REQUEST_PER_HOUR) throw new HarnessError(`요청은 시간당 ${REQUEST_PER_HOUR}번까지 보낼 수 있어요. 잠시 뒤에 다시 시도해 주세요`, 429);
+      let r;
+      try {
+        r = await (routine.fetchImpl || fetch)(routine.url, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${routine.token}`, 'anthropic-beta': 'experimental-cc-routine-2026-04-01', 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+          body: JSON.stringify({ text }),
+          signal: AbortSignal.timeout(15_000),
+        });
+      } catch { throw new HarnessError('Claude Code에 연결하지 못했어요. 잠시 뒤에 다시 시도해 주세요', 502); }
+      if (r.status === 401 || r.status === 403) throw new HarnessError('Claude Code 요청 토큰이 거절됐어요. 루틴 토큰을 다시 만들어 환경변수를 바꿔 주세요', 502);
+      if (r.status === 429) throw new HarnessError('Claude Code 루틴의 시간당 호출 한도에 닿았어요. 잠시 뒤에 다시 시도해 주세요', 429);
+      if (!r.ok) throw new HarnessError(`요청을 시작하지 못했어요 (Claude Code 응답 ${r.status})`, 502);
+      fireTimes.push(now);
+      const j = await r.json().catch(() => ({}));
+      const url = typeof j.claude_code_session_url === 'string' && j.claude_code_session_url.startsWith('https://claude.ai/') ? j.claude_code_session_url : null;
+      return send(res, 202, { sessionUrl: url });
     },
 
     /** 에이전트가 자기 요청함에서 가장 오래된 작업 하나를 가져간다(진행 중으로 바뀜). 없으면 task: null */
@@ -319,7 +365,7 @@ export function createHarnessApi({ store, dashboardToken, agentToken, sprites, p
   };
 
   /** 사람(DASHBOARD_TOKEN)만 쓸 수 있는 동작 */
-  const dashboardOnly = new Set(['POST /api/harness/tasks', 'POST /api/harness/holdings']);
+  const dashboardOnly = new Set(['POST /api/harness/tasks', 'POST /api/harness/request', 'POST /api/harness/holdings', 'GET /api/harness/igbot']);
 
   async function handle(req, res, url) {
     const path = url.pathname.replace(/\/+$/, '') || '/';
