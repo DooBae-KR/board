@@ -50,7 +50,15 @@ export async function handleWebhook(request, { env, db, repos }) {
   if (!env.APP_SECRET) return text('APP_SECRET is not configured', 500);
 
   const raw = Buffer.from(await request.arrayBuffer());
-  if (!verifySignature(raw, request.headers.get('x-hub-signature-256'), env.APP_SECRET)) return text('unauthorized', 401);
+  const sig = request.headers.get('x-hub-signature-256');
+  if (!verifySignature(raw, sig, env.APP_SECRET)) {
+    // 서명이 틀린 요청은 처리하지 않는다. 다만 Meta가 보낸 것처럼 서명 헤더가 있으면 APP_SECRET 오설정을 알 수 있게
+    // 오류를 1시간에 한 번만 남긴다(본문·헤더 값은 저장하지 않고, 아무나 DB에 쓰지 못하게 횟수를 제한한다).
+    if (sig && await dbOnce(db)(`sigfail:${Math.floor(Date.now() / 3600_000)}`)) {
+      await withEventSink(db, async () => { record('-', 'error', { detail: '웹훅 서명 불일치: APP_SECRET이 Instagram 앱 시크릿인지 확인' }); });
+    }
+    return text('unauthorized', 401);
+  }
 
   const igs = accountsFromEnv(env);
   const seeds = Object.fromEntries(Object.entries(igs).map(([lang, a]) => [lang, a.token]));

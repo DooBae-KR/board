@@ -53,6 +53,18 @@ test('서명이 틀리면 401, APP_SECRET이 없으면 500(검증 우회 금지)
   assert.equal((await handleWebhook(post(comment('c1')), { env: { ...ENV, APP_SECRET: '' }, db: fakeDb(), repos })).status, 500);
 });
 
+test('서명이 틀린 요청은 오류를 1시간에 한 번만 기록하고, 서명 헤더가 없으면 기록하지 않는다', async () => {
+  const db = fakeDb();
+  for (let i = 0; i < 3; i++) assert.equal((await handleWebhook(post(comment('c' + i), 'wrong'), { env: ENV, db, repos })).status, 401);
+  assert.equal(db.t.igbot_events.filter((e) => e.event === 'error').length, 1);
+  assert.match(db.t.igbot_events[0].detail, /APP_SECRET/);
+  assert.equal(JSON.stringify(db.t.igbot_events).includes('wrong'), false);
+  const db2 = fakeDb();
+  const noSig = new Request('https://x/webhook', { method: 'POST', body: '{}' });
+  assert.equal((await handleWebhook(noSig, { env: ENV, db: db2, repos })).status, 401);
+  assert.equal(db2.t.igbot_events.length, 0);
+});
+
 test('팔로워 댓글 → DM 전송, 같은 댓글이 다시 와도(다른 인스턴스) 한 번만 처리', async () => {
   const db = fakeDb();
   assert.equal((await handleWebhook(post(comment('c1')), { env: ENV, db, repos })).status, 200);
