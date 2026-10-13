@@ -83,6 +83,56 @@ export async function handleWebhook(request, { env, db, repos }) {
   });
 }
 
+/**
+ * 예약 함수: 웹훅이 놓친 댓글 다시 줍기 + 등록되지 않은 최근 게시물의 미디어 ID 기록.
+ * (아이디어: Xeven777/openinstadm lib/polling/comment-reconciler.ts, MIT. 그쪽은 Next.js 워커용이라 서버리스에 맞게 새로 썼다)
+ * 최근 lookbackHours 안의 댓글 중 등록된 게시물·키워드에 맞는 것만 웹훅과 같은 처리기로 넘긴다.
+ * 이미 처리한 댓글은 igbot_seen의 `c:<댓글ID>` 키로 건너뛰므로 웹훅과 겹쳐도 DM은 한 번만 나간다.
+ */
+export async function runReconcile({ env, db, repos, now = Date.now, lookbackHours = 24, maxComments = 30 }) {
+  const igs = accountsFromEnv(env);
+  if (!Object.keys(igs).length) return { skipped: 'no accounts' };
+  const tokens = createDbTokenStore({ db, seeds: Object.fromEntries(Object.entries(igs).map(([lang, a]) => [lang, a.token])) });
+  await tokens.load();
+  const accounts = {}, apis = {};
+  for (const [lang, a] of Object.entries(igs)) {
+    apis[lang] = createApi({ igUserId: a.userId, token: () => tokens.get(lang) });
+    accounts[a.userId] = { lang, api: apis[lang] };
+  }
+  const once = dbOnce(db);
+  const handle = createHandlers({ accounts, loadRepos: () => repos, once });
+  const since = now() - lookbackHours * 3600_000;
+  const stat = {};
+
+  return withEventSink(db, async () => {
+    for (const [lang, a] of Object.entries(igs)) {
+      const st = (stat[lang] = { media: 0, comments: 0, errors: 0 });
+      let media = [];
+      try { media = await apis[lang].listMedia(25); } catch (e) { st.errors++; record(lang, 'error', { detail: `재조회(게시물 목록): ${String(e.message).slice(0, 150)}` }); continue; }
+      st.media = media.length;
+      const registered = new Set(repos.map((r) => r.mediaId));
+      for (const m of media) {
+        if (!registered.has(m.id)) {
+          // 등록되지 않은 게시물: 미디어 ID와 주소를 기록해 repos.json 등록에 쓸 수 있게 한다(토큰 노출 없이 확인)
+          if (await once(`m:${m.id}`)) record(lang, 'media', { detail: `media:${m.id} ${String(m.permalink ?? '').slice(0, 80)}` });
+          continue;
+        }
+        try {
+          const comments = (await apis[lang].listComments(m.id, since)).sort((x, y) => String(x.timestamp).localeCompare(String(y.timestamp))).slice(-maxComments);
+          for (const c of comments) {
+            st.comments++;
+            await handle({ entry: [{ id: a.userId, changes: [{ field: 'comments', value: { id: c.id, text: c.text, from: c.from, media: { id: m.id } } }] }] });
+          }
+        } catch (e) {
+          st.errors++;
+          record(lang, 'error', { detail: `재조회(댓글): ${String(e.message).slice(0, 150)}` });
+        }
+      }
+    }
+    return stat;
+  });
+}
+
 /** 예약 함수: 만료가 가까운 토큰 갱신 + 오래된 중복 방지 키 정리 */
 export async function runMaintenance({ env, db, now = Date.now }) {
   const igs = accountsFromEnv(env);

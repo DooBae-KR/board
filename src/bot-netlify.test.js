@@ -1,7 +1,7 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { handleWebhook, runMaintenance } from './bot-netlify.js';
+import { handleWebhook, runMaintenance, runReconcile } from './bot-netlify.js';
 import { createDbTokenStore } from './tokens-db.js';
 import { SupabaseError } from '../scripts/lib/supabase.js';
 
@@ -114,4 +114,43 @@ test('예약 함수: 만료 20일 넘게 남으면 갱신하지 않고, 3일 지
   await runMaintenance({ env: ENV, db, now: () => now + 1000 }); // 60일 남음 → 건너뜀
   assert.equal(refreshes, 1);
   assert.deepEqual(db.t.igbot_seen.map((r) => r.key), ['new']);
+});
+
+test('재조회: 웹훅이 놓친 댓글에만 DM, 이미 처리한 댓글은 건너뜀, 등록 안 된 게시물은 미디어 ID만 기록', async () => {
+  const db = fakeDb();
+  const now = Date.parse('2026-10-13T12:00:00Z');
+  const sent = [];
+  globalThis.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.includes('/media?')) return { ok: true, status: 200, json: async () => ({ data: [{ id: 'm1', permalink: 'https://www.instagram.com/p/AAA/' }, { id: 'm9', permalink: 'https://www.instagram.com/p/BBB/' }] }) };
+    if (u.includes('m1/comments')) return { ok: true, status: 200, json: async () => ({ data: [
+      { id: 'c-new', text: '링크 주세요', timestamp: '2026-10-13T11:00:00Z', from: { id: 'u1' } },
+      { id: 'c-done', text: '링크', timestamp: '2026-10-13T10:00:00Z', from: { id: 'u2' } },
+      { id: 'c-old', text: '링크', timestamp: '2026-10-01T10:00:00Z', from: { id: 'u3' } },
+      { id: 'c-own', text: '링크', timestamp: '2026-10-13T09:00:00Z', from: { id: 'acc' } },
+      { id: 'c-other', text: '안녕', timestamp: '2026-10-13T09:30:00Z', from: { id: 'u4' } },
+    ] }) };
+    if (u.includes('is_user_follow_business')) return { ok: true, status: 200, json: async () => ({ is_user_follow_business: true }) };
+    if (u.endsWith('/messages')) { sent.push(JSON.parse(init.body).recipient); return { ok: true, status: 200, json: async () => ({}) }; }
+    throw new Error('unexpected ' + u);
+  };
+  db.t.igbot_seen.push({ key: 'c:c-done' }); // 웹훅이 이미 처리함
+  const r = await runReconcile({ env: ENV, db, repos, now: () => now });
+  assert.deepEqual(sent, [{ comment_id: 'c-new' }]);
+  assert.equal(r.ko.errors, 0);
+  const media = db.t.igbot_events.filter((e) => e.event === 'media');
+  assert.equal(media.length, 1);
+  assert.match(media[0].detail, /media:m9 https:\/\/www\.instagram\.com\/p\/BBB/);
+  // 두 번째 실행: 같은 댓글·게시물은 다시 처리·기록하지 않는다
+  await runReconcile({ env: ENV, db, repos, now: () => now });
+  assert.equal(sent.length, 1);
+  assert.equal(db.t.igbot_events.filter((e) => e.event === 'media').length, 1);
+});
+
+test('재조회: 게시물 목록 조회가 실패하면 오류를 기록하고 멈추지 않는다', async () => {
+  const db = fakeDb();
+  globalThis.fetch = async () => ({ ok: false, status: 400, json: async () => ({ error: 'x' }) });
+  const r = await runReconcile({ env: ENV, db, repos });
+  assert.equal(r.ko.errors, 1);
+  assert.match(db.t.igbot_events[0].detail, /재조회/);
 });

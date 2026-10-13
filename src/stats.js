@@ -1,5 +1,5 @@
 // 대시보드용 집계 (메모리 기반: 서버 재시작 시 초기화)
-const EVENTS = ['unmatched', 'matched', 'link_direct', 'asked', 'click_ok', 'click_retry', 'error'];
+const EVENTS = ['media', 'unmatched', 'matched', 'link_direct', 'asked', 'click_ok', 'click_retry', 'error'];
 let sink = null;
 let pending = [];
 const counters = {}; // { [lang]: { [event]: n } }
