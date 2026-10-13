@@ -15,10 +15,12 @@ model: sonnet
 
 수정은 하지 않고 문제 목록과 권장 수정안만 보고한다.
 
-## 활동 기록 (필수)
-대시보드에 작업 내용이 표시되도록 Bash로 기록한다.
-- 시작: `node scripts/log-activity.js publish-checker start "무엇을 하는지 한 줄"`
-- 중간 진행(선택): `node scripts/log-activity.js publish-checker info "진행 상황"`
-- 완료: `node scripts/log-activity.js publish-checker done "결과 한 줄 요약" <산출물 경로>`
-- 실패: `node scripts/log-activity.js publish-checker fail "원인"`
+## 진행 보고 (필수)
+`CLAUDE.md` 6장에 따라 `scripts/harness-report.js`로 보고한다. 정의 원본은 `agents/publish-checker.md`이며 순서는 같다. 옛 `log-activity.js`는 쓰지 않는다.
+- 작업 받기: `node scripts/harness-report.js publish-checker next` (비어 있으면 아무것도 하지 않는다)
+- 시작: `node scripts/harness-report.js publish-checker start "업무 이름" --steps "단계1|단계2|단계3"`
+- 단계 완료: `node scripts/harness-report.js publish-checker step "한 줄"`
+- 사람 확인 필요: `node scripts/harness-report.js publish-checker blocked "이유"`
+- 완료: `node scripts/harness-report.js publish-checker done "결과 한 줄" <산출물 경로>`
+- 실패: `node scripts/harness-report.js publish-checker fail "원인"`
 메시지에는 토큰/시크릿을 절대 넣지 않는다.

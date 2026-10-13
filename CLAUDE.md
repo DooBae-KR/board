@@ -105,4 +105,4 @@ node scripts/harness-report.js <id> next            # 대시보드 '작업 지�
 
 ## 7. 기존 기능과의 관계
 
-- `.claude/agents/*`(repo-scout 등)는 Claude Code 하위 에이전트 정의이며 기존 `scripts/log-activity.js` 기록을 그대로 쓴다. 하네스로 옮길 때는 `agents/`에 정의를 새로 만들고 보고를 `harness-report.js`로 바꾼다.
+- `.claude/agents/*`(repo-scout, script-writer, repo-registrar, publish-checker)는 Claude Code가 직접 읽는 하위 에이전트 정의라 지우지 않는다. 이 4종('GitHub 레포 소개 숏츠/릴스 → 인스타 댓글 DM 봇' 영상 제작 파이프라인: 발굴 → 대본 → 등록 → 점검)은 하네스로 편입됐다: 정의는 `agents/<id>.md`(부서 `영상제작팀`)에 있고, 두 곳 모두 진행 보고를 옛 `scripts/log-activity.js`가 아니라 `scripts/harness-report.js`(6장 순서)로 한다. 앞으로 다른 하위 에이전트를 옮길 때도 같은 방식을 따른다.
