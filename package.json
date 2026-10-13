@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node --env-file=.env src/server.js",
     "test": "node --test",
+    "bot:check": "node scripts/check-bot.js",
     "agents:sync": "node --env-file=.env scripts/agents-sync.js",
     "agents:check": "node scripts/agents-sync.js --dry-run",
     "harness:report": "node --env-file=.env scripts/harness-report.js",
