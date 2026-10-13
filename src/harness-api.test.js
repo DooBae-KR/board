@@ -9,7 +9,7 @@ import { runReport } from '../scripts/lib/report.js';
 const DASH = 'dash-token', AGENT = 'agent-token';
 const SPRITES = ['idle', 'happy', 'sleep'];
 
-async function boot({ withStore = true, admins = [] } = {}) {
+async function boot({ withStore = true, admins = [], routine } = {}) {
   const store = createMemoryStore({
     sections: [{ name: '인사팀' }],
     agents: [{ id: 'lumi', name: '루미', role: '분석', pose: 'idle', color: '#7A5BC9', example: false, md_sha256: 'secret-hash' }],
@@ -18,7 +18,7 @@ async function boot({ withStore = true, admins = [] } = {}) {
   });
   const api = createHarnessApi({
     store: withStore ? store : null, dashboardToken: DASH, agentToken: AGENT, sprites: SPRITES,
-    pageUrl: new URL('./harness.html', import.meta.url), supabaseUrl: 'https://proj.supabase.co', onError: () => {},
+    pageUrl: new URL('./harness.html', import.meta.url), supabaseUrl: 'https://proj.supabase.co', routine, onError: () => {},
   });
   const server = createServer(async (req, res) => { if (!(await api.handle(req, res, new URL(req.url, 'http://x')))) res.writeHead(404).end(); });
   await new Promise((r) => server.listen(0, r));
@@ -374,5 +374,89 @@ test('나의 주식수익률: 거래 추가·수정·삭제는 사람만, 입력
 
   assert.equal((await t.call('DELETE', '/api/harness/holdings/' + id, { token: DASH })).status, 200);
   assert.equal((await t.call('DELETE', '/api/harness/holdings/' + id, { token: DASH })).status, 404);
+  t.close();
+});
+
+/* ---------- 대시보드 → Claude Code 요청 (루틴 API 트리거) ---------- */
+const FIRE_URL = 'https://api.anthropic.com/v1/claude_code/routines/trig_01TESTTESTTEST/fire';
+const ROUTINE_TOKEN = 'rt-secret-token-value-123456';
+const fakeRoutine = (over = {}) => {
+  const calls = [];
+  const fetchImpl = async (url, opts) => { calls.push({ url, opts }); return over.res ?? { ok: true, status: 200, json: async () => ({ claude_code_session_url: 'https://claude.ai/code/session_01ABC' }) }; };
+  return { calls, routine: { url: FIRE_URL, token: ROUTINE_TOKEN, fetchImpl } };
+};
+
+test('요청: 대시보드 토큰만 허용하고 에이전트 토큰·무토큰은 403', async () => {
+  const { routine, calls } = fakeRoutine();
+  const t = await boot({ routine });
+  assert.equal((await t.call('POST', '/api/harness/request', { body: { text: '안녕' } })).status, 403);
+  assert.equal((await t.call('POST', '/api/harness/request', { token: AGENT, body: { text: '안녕' } })).status, 403);
+  assert.equal(calls.length, 0);
+  t.close();
+});
+
+test('요청: 루틴이 설정되지 않았거나 URL 형식이 틀리면 503이고 호출하지 않는다', async () => {
+  const none = await boot();
+  assert.equal((await none.call('POST', '/api/harness/request', { token: DASH, body: { text: 'x' } })).status, 503);
+  none.close();
+  const bad = fakeRoutine(); bad.routine.url = 'https://evil.example/fire';
+  const t = await boot({ routine: bad.routine });
+  assert.equal((await t.call('POST', '/api/harness/request', { token: DASH, body: { text: 'x' } })).status, 503);
+  assert.equal(bad.calls.length, 0);
+  t.close();
+});
+
+test('요청: 정상이면 루틴 /fire로 text를 보내고 세션 주소만 돌려주며 토큰은 응답에 없다', async () => {
+  const { routine, calls } = fakeRoutine();
+  const t = await boot({ routine });
+  const res = await t.call('POST', '/api/harness/request', { token: DASH, body: { text: '  다음 영상 후보 5개 찾아줘  ' } });
+  assert.equal(res.status, 202);
+  const raw = await res.text();
+  assert.deepEqual(JSON.parse(raw), { sessionUrl: 'https://claude.ai/code/session_01ABC' });
+  assert.equal(raw.includes(ROUTINE_TOKEN), false);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, FIRE_URL);
+  assert.equal(calls[0].opts.headers.Authorization, `Bearer ${ROUTINE_TOKEN}`);
+  assert.equal(calls[0].opts.headers['anthropic-beta'], 'experimental-cc-routine-2026-04-01');
+  assert.deepEqual(JSON.parse(calls[0].opts.body), { text: '다음 영상 후보 5개 찾아줘' });
+  t.close();
+});
+
+test('요청: 빈 글·너무 긴 글·제어문자·비밀값은 보내지 않는다', async () => {
+  const { routine, calls } = fakeRoutine();
+  const t = await boot({ routine });
+  const post = (text) => t.call('POST', '/api/harness/request', { token: DASH, body: { text } });
+  assert.equal((await post('   ')).status, 400);
+  assert.equal((await post('가'.repeat(2001))).status, 400);
+  assert.equal((await post('a\u0000b')).status, 400);
+  assert.equal((await post('키는 sk-ant-api03-' + 'A'.repeat(40) + ' 이야')).status, 400);
+  assert.equal((await t.call('POST', '/api/harness/request', { token: DASH, body: { text: 123 } })).status, 400);
+  assert.equal(calls.length, 0);
+  t.close();
+});
+
+test('요청: 루틴 쪽 오류는 의미 있는 상태로 바꾸고 토큰·본문을 내보내지 않는다', async () => {
+  for (const [status, expected] of [[401, 502], [403, 502], [429, 429], [500, 502]]) {
+    const { routine } = fakeRoutine({ res: { ok: false, status, json: async () => ({ error: { message: ROUTINE_TOKEN } }) } });
+    const t = await boot({ routine });
+    const res = await t.call('POST', '/api/harness/request', { token: DASH, body: { text: '요청' } });
+    assert.equal(res.status, expected, `상류 ${status}`);
+    assert.equal((await res.text()).includes(ROUTINE_TOKEN), false);
+    t.close();
+  }
+  const down = { url: FIRE_URL, token: ROUTINE_TOKEN, fetchImpl: async () => { throw new Error('network'); } };
+  const t2 = await boot({ routine: down });
+  assert.equal((await t2.call('POST', '/api/harness/request', { token: DASH, body: { text: '요청' } })).status, 502);
+  t2.close();
+});
+
+test('요청: 세션 주소가 claude.ai가 아니면 내려주지 않고, 시간당 10번을 넘기면 429', async () => {
+  const odd = fakeRoutine({ res: { ok: true, status: 200, json: async () => ({ claude_code_session_url: 'javascript:alert(1)' }) } });
+  const t = await boot({ routine: odd.routine });
+  const first = await t.call('POST', '/api/harness/request', { token: DASH, body: { text: '요청' } });
+  assert.deepEqual(await first.json(), { sessionUrl: null });
+  for (let i = 0; i < 9; i++) assert.equal((await t.call('POST', '/api/harness/request', { token: DASH, body: { text: `요청 ${i}` } })).status, 202);
+  assert.equal((await t.call('POST', '/api/harness/request', { token: DASH, body: { text: '열한 번째' } })).status, 429);
+  assert.equal(odd.calls.length, 10);
   t.close();
 });

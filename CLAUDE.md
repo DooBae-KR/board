@@ -71,7 +71,7 @@ node scripts/harness-report.js <id> assign  "부서 이름" ["새 업무"]
 node scripts/harness-report.js <id> next            # 요청함(harness_tasks)의 다음 작업을 가져온다 (대시보드에는 입력창이 없고 API로 넣은 작업만 있다)
 ```
 
-- 대시보드의 '작업 지시' 대화창과 에이전트 만들기 입력창은 없앴다(대시보드는 에이전트가 지금 어떤 업무를 하는지 상태만 보여준다. 새 에이전트는 Claude Code에서 `agents/<id>.md`로 만든다). 요청함(`harness_tasks`)에는 API(`POST /api/harness/tasks`)로 넣은 작업만 에이전트별로 쌓인다. 에이전트는 업무를 시작하기 전에 `next`로 가장 오래된 작업 하나를 가져오고(상태 `진행 중`), 그 작업을 `start`로 보고한 뒤 `done`/`fail`로 닫는다(그때 요청함의 작업도 `완료`/`실패`가 된다). 비어 있으면 아무것도 하지 않는다.
+- 대시보드의 '작업 지시' 대화창과 에이전트 만들기 입력창은 없앴다(대시보드는 에이전트가 지금 어떤 업무를 하는지 상태만 보여준다. 새 에이전트는 Claude Code에서 `agents/<id>.md`로 만든다. 상단 입력창은 에이전트가 아니라 Claude Code 루틴으로 요청을 보낸다: `POST /api/harness/request`, `docs/claude-code-request.md`). 요청함(`harness_tasks`)에는 API(`POST /api/harness/tasks`)로 넣은 작업만 에이전트별로 쌓인다. 에이전트는 업무를 시작하기 전에 `next`로 가장 오래된 작업 하나를 가져오고(상태 `진행 중`), 그 작업을 `start`로 보고한 뒤 `done`/`fail`로 닫는다(그때 요청함의 작업도 `완료`/`실패`가 된다). 비어 있으면 아무것도 하지 않는다.
 - 업무를 시작하면 `start`, 단계를 끝낼 때마다 `step`, 끝나면 `done` 또는 `fail`. 사람 승인이 필요하면 `blocked`로 멈춘다.
 - 메시지에 토큰, 비밀번호, 개인 정보를 넣지 않는다.
 - 60분 넘게 보고가 없으면 대시보드가 "응답 없음"으로 표시한다.
@@ -93,6 +93,7 @@ node scripts/harness-report.js <id> next            # 요청함(harness_tasks)�
 | `POST /api/harness/sections` | 대시보드 또는 에이전트 | 섹션 추가 → 메뉴에 동적으로 생김 |
 | `PUT /api/harness/widgets` | 대시보드 또는 에이전트 | 섹션 위젯 갱신 (섹션+제목이 같으면 덮어씀) |
 | `DELETE /api/harness/sections/:id` | 대시보드(쿠키·Bearer)만 | 섹션 삭제 |
+| `POST /api/harness/request` | 대시보드(쿠키·Bearer)만 | 입력한 요청을 Claude Code 루틴(API 트리거 `/fire`)으로 보내 새 세션을 시작하고 세션 주소만 돌려준다 (2000자, 비밀값 거부, 시간당 10번). 루틴 URL·토큰은 서버 환경변수 `ROUTINE_FIRE_URL`·`ROUTINE_FIRE_TOKEN`에만 둔다 |
 | `GET /api/harness/igbot?days=7` | 대시보드(쿠키·Bearer)만 | 인스타 DM 봇 퍼널(계정 ko/en별 댓글 매칭·링크 즉시·팔로우 요청·버튼 성공·미팔로우 재안내·오류)과 경고(토큰 만료 7일 이내, 토큰 갱신 실패, 최근 24시간 웹훅 오류)를 서버가 `igbot_events`/`igbot_tokens`에서 집계해 돌려준다. 토큰 값은 읽지도 내보내지도 않는다. `/harness` 홈의 인스타그램 영역이 쓴다 |
 | `GET /api/harness/motion/:id/:state` | 대시보드(쿠키·Bearer) | 렌더된 모션 클립(서명 URL로 이동) |
 

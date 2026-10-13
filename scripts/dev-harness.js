@@ -40,7 +40,9 @@ for (const a of agents) {
 }
 
 const sprites = readdirSync(join(root, 'src/assets/char')).filter((f) => f.endsWith('.png')).map((f) => f.slice(0, -4));
-const api = createHarnessApi({ store, dashboardToken: 'dev', agentToken: 'dev-agent', sprites, pageUrl: new URL('../src/harness.html', import.meta.url) });
+const api = createHarnessApi({ store, dashboardToken: 'dev', agentToken: 'dev-agent', sprites, pageUrl: new URL('../src/harness.html', import.meta.url),
+  // 로컬 미리보기: 실제 Claude Code로 보내지 않고 가짜 세션 주소를 돌려준다
+  routine: { url: 'https://api.anthropic.com/v1/claude_code/routines/trig_DEV/fire', token: 'dev', fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ claude_code_session_url: 'https://claude.ai/code/session_dev_preview' }) }) } });
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const m = url.pathname.match(/^\/assets\/char\/(?:(sehun)\/)?([a-z]+)\.png$/);

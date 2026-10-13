@@ -13,6 +13,7 @@ export default async (request) => {
     store: SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY ? createStore(createClient()) : null,
     dashboardToken: DASHBOARD_TOKEN, agentToken: HARNESS_API_TOKEN,
     sprites, pageHtml, supabaseUrl: SUPABASE_URL,
+    routine: { url: process.env.ROUTINE_FIRE_URL, token: process.env.ROUTINE_FIRE_TOKEN },
     onError: (e) => console.error('harness:', e.message),
   });
   return handleRequest(api, request);

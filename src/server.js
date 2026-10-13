@@ -68,6 +68,7 @@ const harnessApi = createHarnessApi({
   sprites: readdirSync(new URL('./assets/char/', import.meta.url)).filter((f) => f.endsWith('.png')).map((f) => f.slice(0, -4)),
   pageUrl: new URL('./harness.html', import.meta.url),
   supabaseUrl: SUPABASE_URL,
+  routine: { url: process.env.ROUTINE_FIRE_URL, token: process.env.ROUTINE_FIRE_TOKEN },
   onError: (e) => { record('-', 'error', { detail: `harness: ${String(e.message).slice(0, 180)}` }); console.error(e); },
 });
 if (!harnessDb) console.warn('SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY가 없어 하네스 API를 끕니다');
