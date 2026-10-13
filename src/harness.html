@@ -440,7 +440,6 @@ pre.code{background:var(--bg);border-radius:10px;padding:12px;font-size:12px;ove
     <div class="brand"><img id="brandimg" src="/assets/char/idle.png" alt=""><div><b>HARNESS</b><small>부서별 에이전트 대시보드</small></div></div>
     <div class="menu-label">메뉴</div>
     <ul class="menu" id="menu"></ul>
-    <button class="add-btn" data-act="add-section" type="button">+ 섹션 추가</button>
     <div class="side-foot">
       <div class="charbox" id="charbox"><img id="charimg" src="/assets/char/wave.png" alt="캐릭터">
         <div class="chartabs" role="group" aria-label="캐릭터 테마"><button type="button" data-char="iu" aria-pressed="true">아이유</button><button type="button" data-char="sehun" aria-pressed="false">세훈이</button></div>
@@ -477,7 +476,7 @@ const hex = c => (/^#[0-9a-fA-F]{3,8}$/.test(c || '') ? c : null);
 const agentColor = a => hex(a.color) || FALLBACK_COLORS[[...a.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 997, 0) % FALLBACK_COLORS.length];
 const ago = iso => { if (!iso) return ''; const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000); if (s < 60) return '방금'; if (s < 3600) return Math.floor(s / 60) + '분 전'; if (s < 86400) return Math.floor(s / 3600) + '시간 전'; return Math.floor(s / 86400) + '일 전'; };
 
-const state = { budgetMonth: null, data: { sections: [], widgets: [], agents: [], events: [], tasks: [] }, chatAgent: null, drafts: {}, loaded: false, active: 'overview', collapsed: {}, filter: 'all', etag: null };
+const state = { budgetMonth: null, data: { sections: [], widgets: [], agents: [], events: [], tasks: [] }, chatAgent: null, drafts: {}, loaded: false, active: 'overview', filter: 'all', agentView: 'status', etag: null };
 const sec = id => state.data.sections.find(s => s.id === id);
 const kids = pid => state.data.sections.filter(s => (s.parent_id || null) === pid || (pid === null && s.parent_id && !sec(s.parent_id)));
 const agentsIn = sid => state.data.agents.filter(a => a.section_id === sid);
@@ -486,7 +485,6 @@ const widgetsOf = sid => state.data.widgets.filter(w => w.section_id === sid);
 const ancestors = s => { const out = []; let p = s.parent_id && sec(s.parent_id); while (p && out.length < 20) { out.unshift(p); p = p.parent_id && sec(p.parent_id); } return out; };
 const secPath = s => s ? ancestors(s).map(a => a.name).concat(s.name).join(' › ') : '대기실';
 const descendantIds = id => { const out = new Set([id]); let grew = true; while (grew) { grew = false; state.data.sections.forEach(s => { if (s.parent_id && out.has(s.parent_id) && !out.has(s.id)) { out.add(s.id); grew = true; } }); } return out; };
-const agentCount = s => [...descendantIds(s.id)].reduce((n, id) => n + agentsIn(id).length, 0);
 const pct = a => Math.max(0, Math.min(100, Math.round(num(a.progress))));
 const stepInfo = a => { const s = a.steps || []; const i = s.findIndex(x => !x.done); return { i, n: s.length, done: s.filter(x => x.done).length }; };
 
@@ -823,13 +821,25 @@ function sectionHTML(s) {
     : `<div class="agent" style="justify-content:center;background:var(--surface);border:1px dashed var(--line)"><img src="${sprite('sleep')}" style="width:200px" alt="잠든 캐릭터"><div class="bubble">위젯이 없어요. 에이전트가 <code>PUT /api/harness/widgets</code>로 데이터를 보내면 채워져요.</div></div>`}`;
 }
 function rosterHTML() {
-  const f = state.filter, g = groupAgents(), all = state.data.agents;
+  const f = state.filter, g = groupAgents(), all = state.data.agents, dept = state.agentView === 'dept';
   const keys = f === 'all' ? Object.keys(AG) : [AG[f] ? f : 'active'];
   const FL = [['all', '전체', all.length], ...Object.keys(AG).map(k => [k, AG[k].l, g[k].length])];
-  return `<div class="head"><div><div class="eyebrow">Agents</div><h1>에이전트</h1></div><div class="actions"><button class="primary" type="button" data-act="build-from" data-q="">+ 새 에이전트</button></div></div>
-  <p class="empty" style="margin:0">정의는 agents/&lt;id&gt;.md, 진행 상황은 에이전트가 보고한 값이 기준이에요. ${crewSummary(all)}</p>
+  const VIEW = [['status', '상태별'], ['dept', '부서별']];
+  let body;
+  if (dept) {
+    // 부서(본부 › 팀) 순서대로 묶고, 배치 전 에이전트는 대기실에 모은다. 상태 필터는 그대로 적용된다.
+    const keep = a => f === 'all' || agentGroup(a) === f;
+    const order = []; const walk = x => { order.push(x); kids(x.id).forEach(walk); }; kids(null).forEach(walk);
+    const groups = order.map(x => ({ name: secPath(x), color: COLORS[x.color] || 'var(--accent)', ags: agentsIn(x.id).filter(keep), id: x.id })).concat([{ name: '대기실', color: 'var(--line)', ags: lobby().filter(keep), id: null }]).filter(x => x.ags.length);
+    body = groups.length ? groups.map(x => `<section class="gap"><div class="ghead"><h2><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${x.color};margin-right:8px;box-shadow:inset 0 0 0 2px rgba(0,0,0,.08)"></i>${esc(x.name)} ${x.ags.length}</h2>${x.id ? `<button type="button" class="ghost" data-nav="${esc(x.id)}" style="margin-left:auto">부서 화면</button>` : '<small>배치 전 에이전트</small>'}</div><div class="crew">${x.ags.map(agentCard).join('')}</div></section>`).join('') : '<p class="empty">조건에 맞는 에이전트가 없어요.</p>';
+  } else {
+    body = keys.map(k => `<section class="gap"><div class="ghead"><h2><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${AG[k].c};margin-right:8px;box-shadow:inset 0 0 0 2px rgba(0,0,0,.08)"></i>${AG[k].l} ${g[k].length}</h2><small>${AG[k].d}</small></div>${g[k].length ? `<div class="crew">${g[k].map(agentCard).join('')}</div>` : `<p class="empty">${AG[k].e}</p>`}</section>`).join('');
+  }
+  return `<div class="head"><div><div class="eyebrow">Agents</div><h1>에이전트</h1></div><div class="actions"><button class="ghost" type="button" data-nav="tree">조직 구조</button><button class="primary" type="button" data-act="build-from" data-q="">+ 새 에이전트</button></div></div>
+  <p class="empty" style="margin:0">모든 에이전트는 여기서 확인해요. 정의는 agents/&lt;id&gt;.md, 진행 상황은 에이전트가 보고한 값이 기준이에요. ${crewSummary(all)}</p>
+  <div class="opts" role="group" aria-label="보기 방식">${VIEW.map(([k, l]) => `<button type="button" class="opt" data-act="agent-view" data-v="${k}" aria-pressed="${state.agentView === k}">${l}</button>`).join('')}</div>
   <div class="opts" role="group" aria-label="에이전트 상태 필터">${FL.map(([k, l, n]) => `<button type="button" class="opt" data-act="flt" data-v="${k}" aria-pressed="${f === k}">${l} ${n}</button>`).join('')}</div>
-  ${keys.map(k => `<section class="gap"><div class="ghead"><h2><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${AG[k].c};margin-right:8px;box-shadow:inset 0 0 0 2px rgba(0,0,0,.08)"></i>${AG[k].l} ${g[k].length}</h2><small>${AG[k].d}</small></div>${g[k].length ? `<div class="crew">${g[k].map(agentCard).join('')}</div>` : `<p class="empty">${AG[k].e}</p>`}</section>`).join('')}`;
+  ${body}`;
 }
 function orgNode(s) {
   const ch = kids(s.id), ags = agentsIn(s.id), ws = widgetsOf(s.id);
@@ -902,19 +912,13 @@ async function cancelTask(id) {
 }
 
 /* ---------- menu & render ---------- */
-function menuNode(s) {
-  const ch = kids(s.id), ags = agentsIn(s.id), ws = widgetsOf(s.id), has = ch.length || ags.length || ws.length, open = !state.collapsed[s.id];
-  return `<li><div class="row"><button type="button" class="caret${has ? '' : ' none'}" data-toggle="${esc(s.id)}" aria-expanded="${open}" aria-label="${esc(s.name)} ${open ? '접기' : '펼치기'}"></button>
-    <button type="button" class="mi" data-nav="${esc(s.id)}" ${state.active === s.id ? 'aria-current="page"' : ''}><span class="dot" style="background:${COLORS[s.color] || 'var(--accent)'}"></span><span class="nm">${esc(s.name)}</span><span class="cnt">${agentCount(s)}</span></button></div>
-    ${open && has ? `<ul>${ch.map(menuNode).join('')}${ags.map(a => `<li><button type="button" class="leaf" data-nav="${esc(s.id)}" data-jump="${esc(a.id)}" title="${esc(a.task)}"><img src="${sprite(a.pose)}" alt=""><span class="ln">${esc(a.name)} · ${esc(a.task || a.role)}</span><span class="pct" style="color:${STATUS_RING[a.status] === 'var(--line)' ? 'var(--muted)' : STATUS_RING[a.status]}">${a.status === 'done' ? 'DONE' : pct(a) + '%'}</span></button></li>`).join('')}${ws.map(w => `<li><button type="button" class="leaf" data-nav="${esc(s.id)}" data-jump="${esc(w.id)}"><span class="wt">${TYPE_TAG[w.type] || ''}</span><span>${esc(w.title)}</span></button></li>`).join('')}</ul>` : ''}</li>`;
-}
 function renderMenu() {
   const g = groupAgents(), cur = id => (state.active === id ? 'aria-current="page"' : '');
   const item = (id, n, c, k, extra = '') => `<li><div class="row"><span class="caret none"></span><button type="button" class="mi" data-nav="${id}" ${cur(id)}><span class="dot" style="background:${c}"></span><span class="nm">${n}</span>${k === '' ? '' : `<span class="cnt">${k}</span>`}</button></div>${extra}</li>`;
-  const sub = `<ul>${Object.keys(AG).map(k => `<li><button type="button" class="leaf" data-act="agents-go" data-v="${k}"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;flex:none;background:${AG[k].c}"></span><span class="ln">${AG[k].l}</span><span class="pct" style="color:var(--muted)">${g[k].length}</span></button></li>`).join('')}</ul>`;
+  const byDept = `<li><button type="button" class="leaf" data-act="agents-dept"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;flex:none;background:var(--lilac)"></span><span class="ln">부서별 보기</span><span class="pct" style="color:var(--muted)">${kids(null).length}</span></button></li>`;
+  const sub = `<ul>${Object.keys(AG).map(k => `<li><button type="button" class="leaf" data-act="agents-go" data-v="${k}"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:3px;flex:none;background:${AG[k].c}"></span><span class="ln">${AG[k].l}</span><span class="pct" style="color:var(--muted)">${g[k].length}</span></button></li>`).join('')}${byDept}</ul>`;
   $('menu').innerHTML = item('overview', '내 현황', 'var(--ink)', '') + item('budget', '가계부', 'var(--peach)', budgetMonths().length ? budgetMonths().length + '개월' : '') + item('stocks', '나의 주식수익률', 'var(--bad)', (state.data.holdings || []).length || '') + item('agents', '에이전트', 'var(--pink)', state.data.agents.length, sub)
-    + item('tasks', '작업 지시', 'var(--mint)', (state.data.tasks || []).filter(t => t.status === 'queued').length) + item('tree', '조직 구조', 'var(--lilac)', kids(null).length)
-    + `<li class="menu-label" style="margin-top:10px">부서</li>` + kids(null).map(menuNode).join('');
+    + item('tasks', '작업 지시', 'var(--mint)', (state.data.tasks || []).filter(t => t.status === 'queued').length);
 }
 function render() {
   const m = $('main'), keepY = window.scrollY;
@@ -1119,13 +1123,14 @@ function buildModal(seed, similar = []) {
 /* ---------- events ---------- */
 document.addEventListener('click', e => {
   if (e.target.matches('[data-scrim]') || e.target.closest('[data-close]')) return closeModal();
-  const tg = e.target.closest('[data-toggle]'); if (tg) { state.collapsed[tg.dataset.toggle] = !state.collapsed[tg.dataset.toggle]; return renderMenu(); }
   const act = e.target.closest('[data-act]');
   if (act) {
     const a = act.dataset.act;
     if (a === 'add-section') { setMenu(false); return addSectionModal(null); }
     if (a === 'add-child') return addSectionModal(act.dataset.sid);
-    if (a === 'agents-go') { state.filter = act.dataset.v; setMenu(false); return go('agents'); }
+    if (a === 'agents-go') { state.filter = act.dataset.v; state.agentView = 'status'; setMenu(false); return go('agents'); }
+    if (a === 'agents-dept') { state.filter = 'all'; state.agentView = 'dept'; setMenu(false); return go('agents'); }
+    if (a === 'agent-view') { state.agentView = act.dataset.v; return render(); }
     if (a === 'build-from') { setMenu(false); return buildModal(act.dataset.q || ''); }
     if (a === 'send-task') return sendTask();
     if (a === 'cancel-task') return cancelTask(act.dataset.tid);
