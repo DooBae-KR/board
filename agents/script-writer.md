@@ -26,7 +26,8 @@ GitHub 레포 소개 숏폼 → 인스타 댓글 DM 봇 영상 제작 파이프�
 1. 레포·README 직접 확인: 역할, 설치·사용 명령, 라이선스, 스타 수, 최근 업데이트
 2. 5단계 대본 작성: 문제점(0~6초, 24음절 이하) → 왜 그럴까(6~14초, 34) → 레포 추천(14~26초, 50) → 스타 수 인지도 확인(26~34초, 32) → 팔로우 후 댓글(34~44초, 40)
 3. 캡션(해시태그 8개 이내), 유튜브 제목·설명·고정 댓글, `data/repos.json`용 JSON 조각 작성
-4. 자체 점검 후 저장
+4. 영상 스토리 JSON 작성: `video/story/stories/_template.json`을 복사해 `video/story/stories/<레포이름>-ko.json`으로 채우고 `node scripts/check-story.js <그 파일>`이 통과할 때까지 고친다(음절 예산·키워드·자리표시자 점검)
+5. 자체 점검 후 저장
 
 ## 규칙
 - 사실(기능, 명령어, 라이선스, 스타 수)은 레포 페이지·README에서 **직접 확인한 것만** 쓴다. 확인하지 못한 값은 "미확인"으로 표시하고 대본에 넣지 않는다. 스타 수는 반올림해 "약 N만 개(기준일 기준)"으로 쓴다.
@@ -36,7 +37,7 @@ GitHub 레포 소개 숏폼 → 인스타 댓글 DM 봇 영상 제작 파이프�
 - 개인 경험을 지어내지 않는다("써 봤다", "후기" 금지). 과장("무조건", "100%")과 확인되지 않은 비교를 쓰지 않는다.
 - 실존 인물의 이름·목소리·얼굴을 쓰지 않는다. 수수료를 받는 제휴 링크가 있으면 첫 장면과 캡션 맨 위에 수수료 안내를 넣는다.
 - CTA에는 키워드와 "먼저 팔로우"를 넣고, 자막·캡션·`repos.json`의 키워드가 모두 같은지 확인한다. 미디어 ID는 placeholder로 둔다.
-- 결과는 `docs/script-<레포이름>.md`로만 저장한다. `data/repos.json`은 고치지 않는다(등록은 `repo-registrar`).
+- 결과는 `docs/script-<레포이름>.md`와 영상 스토리 JSON `video/story/stories/<레포이름>-ko.json` 두 파일로만 저장한다. 스토리 JSON의 `stars.value`는 직접 확인한 숫자이고 `narration` 5문장은 대본의 나레이션과 같다. 영상 렌더는 이 에이전트가 하지 않는다(`docs/video-spec.md` 5장). `data/repos.json`은 고치지 않는다(등록은 `repo-registrar`).
 - 되돌릴 수 없는 일이나 사람 판단이 필요한 일은 `blocked`로 보고하고 승인을 기다린다.
 - 토큰, 앱 시크릿, `.env` 값은 읽지도 쓰지도 않으며 보고 메시지에도 넣지 않는다.
 
@@ -45,9 +46,9 @@ GitHub 레포 소개 숏폼 → 인스타 댓글 DM 봇 영상 제작 파이프�
 
 ```
 node scripts/harness-report.js script-writer next
-node scripts/harness-report.js script-writer start "레포 대본 작성" --steps "레포·README 사실 확인|5단계 대본 작성(음절 예산 점검)|캡션·유튜브 문구·repos.json 조각 작성|자체 점검 후 저장(docs/script-<레포이름>.md)"
+node scripts/harness-report.js script-writer start "레포 대본 작성" --steps "레포·README 사실 확인|5단계 대본 작성(음절 예산 점검)|캡션·유튜브 문구·repos.json 조각 작성|영상 스토리 JSON 작성·check-story 통과|자체 점검 후 저장(docs/script-<레포이름>.md)"
 node scripts/harness-report.js script-writer step  "끝낸 단계 한 줄"
 node scripts/harness-report.js script-writer blocked "사람 확인이 필요한 이유"
-node scripts/harness-report.js script-writer done  "KO/EN 대본 완성" docs/script-<레포이름>.md
+node scripts/harness-report.js script-writer done  "대본·스토리 JSON 완성" docs/script-<레포이름>.md
 node scripts/harness-report.js script-writer fail  "원인"
 ```

@@ -41,8 +41,9 @@
 규칙: 직접 확인한 사실만(확인 못 하면 "미확인"으로 빼기), 개인 경험·후기 지어내기 금지, 과장 금지, 제휴 링크가 있으면 수수료 안내를 첫 장면과 캡션 맨 위에. 댓글 키워드는 자막·캡션·`data/repos.json`이 모두 같아야 한다(기본 `두배`).
 
 ## 5. 만드는 순서
+`script-writer`가 대본(`docs/script-<레포>.md`)과 함께 스토리 JSON을 내고, `node scripts/check-story.js`(`npm run story:check`)가 규격(음절 예산, 키워드, 자리표시자, 3·3·3개 항목)을 점검한다. 렌더는 사람이나 CI가 한다.
 ```bash
-cp video/story/stories/_template.json video/story/stories/<레포>-ko.json   # 내용 채우기
+npm run story:check -- video/story/stories/<레포>-ko.json   # 규격 점검
 node video/story/render.mjs video/story/stories/<레포>-ko.json out.mp4          # 무음 렌더(약 1분 30초)
 python3 video/story/make-audio.py video/story/stories/<레포>-ko.json out.mp4 final.mp4   # 음성·배경음·자막·1.2배속
 ```
