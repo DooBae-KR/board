@@ -4,6 +4,18 @@
 
 > 비밀값(토큰, 앱 시크릿, 서비스 롤 키)은 채팅·커밋·스크린샷·이슈에 절대 붙이지 마세요. 환경변수 칸에만 넣습니다.
 
+## 우리 앱 정보와 공식 문서 확인 사항 (2026-10-13 조회)
+
+- **Meta 앱 ID: `1109070718261713`** (비밀이 아닌 공개 값입니다). 앱 대시보드: https://developers.facebook.com/apps/1109070718261713/
+  - 대시보드에는 **Meta 앱 ID/시크릿**(설정 → 기본 설정)과, Instagram 제품 안의 **Instagram 앱 ID/시크릿**이 따로 있을 수 있습니다. 어느 쪽이 웹훅 서명 시크릿인지는 공식 문서가 "앱 시크릿"이라고만 써서 단정할 수 없습니다. 웹훅이 401로 거절되면 다른 쪽 시크릿을 `APP_SECRET`에 넣어 보세요.
+- **권한 이름**(확정): `instagram_business_basic`, `instagram_business_manage_comments`, `instagram_business_manage_messages`
+- **토큰**: 대시보드의 *Instagram > API setup with Instagram business login → Generate token*으로 만든 토큰은 **60일** 유효합니다. 갱신은 `GET https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token` — **발급 24시간 후부터, 만료 전에만** 가능합니다. 만료되면 갱신 불가(재발급).
+- **웹훅**: 콜백은 유효한 TLS 인증서의 HTTPS여야 합니다(Netlify는 해당). 계정 구독은 `POST https://graph.instagram.com/v25.0/<IG계정ID>/subscribed_apps?subscribed_fields=comments,messages`. **공식 문서: "웹훅을 받으려면 앱이 Live 모드여야 한다"**, 그리고 `comments` 필드는 **고급 액세스(Advanced Access)** 가 필요하다고 되어 있습니다. 또한 댓글 알림은 **공개 계정**이어야 옵니다.
+- **비공개 답장**(댓글 → DM): 댓글 작성 후 **7일 이내**, 한 댓글 작성자에게 **먼저 보낼 수 있는 메시지는 1통**이며, 이후 후속 메시지는 상대가 응답한 뒤 **24시간 안**에만 가능합니다. 받는 사람이 **팔로워면 받은편지함, 아니면 "메시지 요청함"** 으로 들어갑니다. 라이브 방송 댓글은 방송 중에만 답장할 수 있습니다.
+- **팔로우 조회**(`is_user_follow_business`): 이 필드는 문서에 있습니다(권한 `instagram_business_basic` + `instagram_business_manage_messages`). 단 **상대의 동의가 필요**하고, 동의는 *상대가 우리에게 DM을 보내거나 아이스브레이커/고정 메뉴를 눌렀을 때만* 생깁니다. **댓글만 단 사용자는 처음에는 조회가 실패**합니다("User consent is required"). 그래서 봇은 먼저 조회를 시도하고(실패해도 정상), 실패하면 "팔로우했어요" 버튼 DM을 보내며, 상대가 버튼을 눌러 응답한 뒤에 다시 조회합니다.
+- **접근 수준**: 내가 소유·관리하는 계정은 Standard Access로 쓸 수 있고, 앱 심사는 "여러 사업체에 서비스하는 앱(Tech Provider)"에서 필수라고 합니다. 다만 위 `comments` 웹훅은 고급 액세스를 요구한다고 적혀 있어 **내 계정 전용이라도 심사가 필요한지는 문서만으로 단정할 수 없습니다 → 7단계에서 실제로 댓글 이벤트가 오는지 먼저 시험해 보세요.**
+- API 버전: 공식 예시는 v25.0이고 봇 코드는 v23.0을 씁니다. 동작에는 지장이 없을 가능성이 높지만 실계정 시험에서 확인하세요.
+
 ## 전체 흐름
 
 1. Meta 앱 만들기
@@ -24,10 +36,10 @@
 
 ## 1. Meta 앱 생성
 
-1. https://developers.facebook.com 에 로그인 → **My Apps → Create App**.
-2. 사용 사례(use case)에서 인스타그램 메시징/댓글 관련 항목(예: "Instagram API 사용" 계열)을 고릅니다. 이름이 바뀌었을 수 있으니 공식 문서에서 확인하세요.
-3. 앱 대시보드 **Settings → Basic** 에서 **App Secret** 을 확인합니다. 이것이 `APP_SECRET` 입니다 (보이기 버튼으로 표시. 복사해 Netlify에만 넣기).
-4. 앱은 처음에 **개발 모드(Development)** 입니다. 심사 전에는 이 모드에서 앱 역할(관리자/개발자/테스터)에 등록된 계정만 동작합니다. 정상입니다.
+1. 앱은 이미 있습니다: https://developers.facebook.com/apps/1109070718261713/ (새로 만들 필요 없음. 앱 유형은 **Business** 여야 합니다).
+2. 앱 대시보드 왼쪽 메뉴에 **Instagram** 이 없다면 제품/사용 사례 추가에서 Instagram(Instagram 로그인 방식)을 추가합니다.
+3. **App Secret**: 앱 대시보드 **앱 설정 → 기본 설정**의 앱 시크릿, 그리고 Instagram 설정 화면에 별도 *Instagram 앱 시크릿*이 있으면 그것도 확인합니다. `APP_SECRET`에는 웹훅 서명용 시크릿을 넣습니다(위 '확인 사항' 참고). 복사해 Netlify에만 넣습니다.
+4. 앱 상단의 모드(**Development / Live**)를 확인합니다. 문서상 웹훅은 **Live 모드**에서만 전송되므로, 7단계에서 이벤트가 오지 않으면 Live 전환(개인정보처리방침 URL·앱 아이콘 등 필요)을 검토합니다.
 
 ## 2. 인스타 계정 연결과 권한
 
@@ -76,13 +88,16 @@ Netlify → 사이트 → **Site configuration → Environment variables**. Func
 2. 없으면 SQL Editor에서 마이그레이션 파일 내용을 실행하거나 Supabase CLI(`supabase db push`)로 적용합니다. 운영 DB에 적용하는 일이므로 파일을 먼저 읽고 하세요.
 3. 테이블이 없으면 웹훅이 500(`token store unavailable`)을 돌려줍니다.
 
-## 7. 개발 모드 테스트 (계정 2개)
+## 7. 실계정 테스트 (계정 2개)
 
-준비: 봇 계정(예: 한국어 계정)과, 앱 역할에 **테스터로 추가·수락한** 개인 계정 2개(A, B). 개발 모드에서는 역할에 등록된 계정의 댓글만 웹훅으로 옵니다.
+준비: 봇 계정(예: 한국어 계정)과, 앱 역할에 **테스터로 추가·수락한** 개인 계정 2개(A, B).
+
+> ⚠ 공식 문서는 "웹훅을 받으려면 앱이 Live 모드여야 하고, `comments` 필드는 고급 액세스가 필요하다"고 합니다. 따라서 **개발 모드에서 댓글 이벤트가 오지 않아도 설정 실수가 아닐 수 있습니다.** 이벤트가 안 오면 ① 앱을 Live로 전환 ② 11단계의 앱 심사(고급 액세스) 순서로 진행하세요. 어느 경우에 이벤트가 오는지는 실제로 시험해야 알 수 있습니다.
 
 1. 임시 테스트 릴스/게시물을 봇 계정에 올리고, 그 미디어 ID를 9단계 방법으로 찾아 **테스트용 항목**을 `data/repos.json` 에 넣어 배포합니다(운영 항목과 섞이지 않게 `id` 에 `test-` 를 붙이고 끝나면 삭제).
 2. 계정 A: 봇 계정을 **팔로우한 상태**로 댓글에 키워드(예 `링크`) → DM으로 GitHub 주소가 와야 합니다.
-3. 계정 B: 봇 계정을 **팔로우하지 않은 상태**로 댓글 → 팔로우 안내 DM(그리고 버튼/재시도 안내)이 오고, 팔로우한 뒤 다시 시도하면 주소가 와야 합니다.
+3. 계정 B: 봇 계정을 **팔로우하지 않은 상태**로 댓글 → 팔로우 안내 DM이 **"메시지 요청함"** 으로 들어옵니다(받은편지함이 아님). 요청을 열어 "팔로우했어요" 버튼을 누르면(팔로우한 뒤) 주소가 와야 합니다.
+   - 계정 A처럼 **이미 팔로우 중인데도 버튼 안내가 온다면** 정상일 수 있습니다: 댓글만 단 사용자는 처음엔 팔로우 조회가 막히기 때문입니다(위 '팔로우 조회' 항목). 버튼을 누르면 곧바로 주소가 와야 합니다.
 4. 같은 댓글이 두 번 처리되지 않는지(중복 방지), 키워드가 틀린 댓글에는 반응이 없는지 확인합니다.
 5. 안 되면 아래 "막혔을 때"를 보세요. Netlify → Functions → webhook 로그, Supabase `igbot_events` 테이블에서 원인을 볼 수 있습니다.
 
@@ -137,20 +152,21 @@ npm run bot:check -- --online --url https://<사이트>  # + 웹훅 핸드셰이
 |---|---|
 | 웹훅 "확인 실패"(콜백 URL 또는 확인 토큰이 유효하지 않음) | 사이트가 배포되었는지, URL이 `/webhook` 인지, 메타에 넣은 확인 토큰 = Netlify `VERIFY_TOKEN` 인지, 환경변수 변경 뒤 재배포했는지. `bot:check -- --url` 로 재현 |
 | 대시보드(`/harness`) 403 또는 로그인 안 됨 | `DASHBOARD_TOKEN` 설정·재배포 여부. 로그인 계정은 Supabase `harness_admins` 에서 관리(`node scripts/admin-user.js`). 다른 주소(origin)에서 접속하면 403이 날 수 있으니 배포 주소로 접속 |
-| 댓글을 달아도 아무 반응 없음 | `comments` 구독 여부(`bot:check --online`), 개발 모드에서는 역할(테스터)에 등록된 계정만 이벤트가 옴, `mediaId`·`keyword` 불일치(`repos.json`), 계정이 한쪽만 설정됨 |
-| DM이 안 감 | `messages` 구독·권한, 인스타 메시지 설정, 응답 시간 제한 등 DM 정책은 공식 문서에서 확인하세요. `igbot_events` 의 `error` 행의 detail 참고 |
-| 웹훅이 401 | `APP_SECRET` 이 앱의 시크릿과 다름 |
+| 댓글을 달아도 아무 반응 없음 | `comments` 구독 여부(`bot:check --online`), **앱이 Live 모드인지, `comments`에 고급 액세스가 있는지**(공식 문서 기준 필요), 계정이 공개 계정인지, `mediaId`·`keyword` 불일치(`repos.json`), 계정이 한쪽만 설정됨 |
+| DM이 안 감 | 비공개 답장은 댓글 후 **7일 이내**, 같은 사람에게 **먼저 보낼 수 있는 건 1통**, 후속 DM은 상대 응답 후 **24시간 이내**. 받는 쪽이 비팔로워면 **메시지 요청함**에 있음. `messages` 구독·권한, `igbot_events`의 `error` 행 detail 참고 |
+| 웹훅이 401 | `APP_SECRET` 이 서명 시크릿과 다름. **Meta 앱 시크릿 ↔ Instagram 앱 시크릿 중 다른 쪽**을 넣어 보세요 |
 | 웹훅이 500 `APP_SECRET is not configured` | `APP_SECRET` 미설정 |
 | 웹훅이 500 `token store unavailable` | Supabase URL/키 오류 또는 6단계 테이블 없음 |
 | `/me` 가 400/401(토큰 오류) | 토큰 만료·권한 철회·잘못 복사. 3단계로 재발급해 Netlify 값을 바꾸고 재배포 |
 | 토큰이 만료됨 | 예약 함수가 갱신하지만, 오래 방치되면 만료되어 갱신 불가. 재발급 필요. Netlify의 `refresh-tokens` 함수 로그 확인 |
 | 같은 댓글에 DM이 두 번 | `igbot_seen` 접근 오류 여부 확인(로그의 "중복 확인 실패") |
 
-## 11. 앱 심사 (고급 액세스) — 별도 절
+## 11. Live 전환과 앱 심사 (고급 액세스) — 별도 절
 
-개발 모드에서는 앱 역할에 등록된 계정만 대상이므로, **일반 사용자(역할 없는 계정)의 댓글에 봇이 반응하게 하려면 앱을 라이브 모드로 전환하고 필요한 권한의 고급 액세스를 받아야 할 가능성이 큽니다.** 다만 다음은 필자가 확신하지 못해 단정하지 않습니다.
+공식 문서 기준 요구사항입니다([앱 심사 문서](https://developers.facebook.com/documentation/instagram-platform/app-review)).
 
-- 어떤 권한이 심사 대상인지, 비즈니스 인증(Business Verification)이 필요한지, 스크린캐스트·사용 사례 설명 요구사항, 심사 소요 기간
-- 개인정보처리방침 URL·데이터 삭제 안내 URL 등 앱 설정에 필요한 항목
-
-→ **반드시 [Meta 앱 심사 공식 문서](https://developers.facebook.com/docs/resp-plat-initiatives/app-review)에서 확인하세요.** 심사 전에는 7단계처럼 테스터 계정으로만 검증하고, 심사 통과 후에 본 서비스 영상을 일반 공개로 운영하세요.
+- **고급 액세스 대상 권한**: `instagram_business_manage_comments`, `instagram_business_manage_messages` (그리고 `instagram_business_basic`).
+- **신청 위치**: 앱 대시보드 → *Instagram → API setup with Instagram login* → **Complete app review** → *Continue to app review*, 이어서 *App Review → Requests*에서 **Edit**.
+- **준비물**: 앱 아이콘(1024×1024), **개인정보처리방침 URL**, 앱 카테고리, 심사 결과를 받을 업무용 이메일, 심사자가 따라 할 수 있는 단계별 테스트 방법(필요하면 테스트 계정), 권한마다 **성공한 API 호출 1회 이상**, 권한별 사용 설명, 권한별 **화면 녹화(스크린캐스트)**(영어 UI 권장, 자막/설명 추가).
+- 문서상 "여러 사업체에 서비스하는 앱"은 심사가 필수이고, **내가 소유·관리하는 계정만 쓰는 앱은 Standard Access로 심사 없이 가능**하다고 합니다. 그러나 `comments` 웹훅은 고급 액세스를 요구한다고도 적혀 있어, **우리 경우 심사가 필요한지는 7단계 실험 결과로 판단**하세요.
+- **문서에 없어서 확인하지 못한 것**: 비즈니스 인증(Business Verification) 필요 여부, 심사 소요 기간. 심사 화면의 안내를 따르세요.
