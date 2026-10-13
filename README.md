@@ -98,7 +98,7 @@ curl -X POST https://<서버>/api/harness/sections -H "Authorization: Bearer $HA
 # 위젯 데이터 보내기
 curl -X PUT https://<서버>/api/harness/widgets -H "Authorization: Bearer $HARNESS_API_TOKEN" \
   -H 'Content-Type: application/json' -d '{"section":"법무팀","title":"계약 현황","type":"kpi","data":{"items":[{"label":"검토 중","value":4,"unit":"건"}]}}'
-# 대시보드 '작업 지시' 대화창에서 보낸 작업을 에이전트가 가져가기
+# 요청함(harness_tasks)에 쌓인 작업을 에이전트가 가져가기 (대시보드 대화창은 없앴고 API로 넣은 작업만 있다)
 node scripts/harness-report.js lumi next      # 가져오면 '진행 중', done/fail 보고 때 '완료'/'실패'
 ```
 
