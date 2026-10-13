@@ -1,4 +1,4 @@
-// 사용: node video/markitdown/render.mjs <ko|en> <출력.mp4> [--stills 1,6,12,20,25,30,36]
+// 사용: node video/story/render.mjs <stories/xxx.json> <출력.mp4> [--stills 1,10,20,30,40]
 // index.html을 프레임 단위로 그려(setT) ffmpeg로 인코딩한다. 무음 영상이며 음성·음악은 넣지 않는다.
 import { spawn } from 'node:child_process';
 import { readFileSync, mkdirSync } from 'node:fs';
@@ -6,24 +6,23 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const [lang = 'ko', out = `markitdown-${lang}.mp4`] = process.argv.slice(2);
+const [storyPath, out = 'story.mp4'] = process.argv.slice(2);
+if (!storyPath) { console.error('story json 경로가 필요합니다'); process.exit(1); }
+const story = JSON.parse(readFileSync(storyPath, 'utf8'));
+const lang = story.id;
 const stillsArg = process.argv.indexOf('--stills');
 const stills = stillsArg > 0 ? process.argv[stillsArg + 1].split(',').map(Number) : [];
-const FPS = 30, DURATION = 50.5;
+const FPS = 30, DURATION = 44;
 
 let chromium;
 try { ({ chromium } = await import('playwright')); }
 catch { ({ chromium } = await import(process.env.PLAYWRIGHT_MODULE || '/opt/node-tools/node_modules/playwright/index.mjs')); }
 
-const demo = {
-  out: readFileSync(join(here, 'demo', `out_${lang}.md`), 'utf8'),
-  plain: readFileSync(join(here, 'demo', `plain_${lang}.txt`), 'utf8'),
-};
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium' });
 const page = await browser.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
 await page.goto(pathToFileURL(join(here, 'index.html')).href);
 await page.evaluate(() => document.fonts.ready);
-await page.evaluate(([l, d]) => init(l, d), [lang, demo]);
+await page.evaluate((s) => init(s), story);
 
 if (stills.length) {
   mkdirSync(join(here, 'stills'), { recursive: true });

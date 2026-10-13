@@ -4,7 +4,7 @@ description: 선택된 레포로 한국어/영어 숏츠·릴스 대본(30~45초
 tools: Read, Write, WebFetch, Bash
 model: sonnet
 ---
-`docs/script-template.md`의 구조(훅 → 문제 → 해결 → 데모 → 댓글 유도)와 `docs/script-markitdown.md`의 완성 예시 형식을 따라 대본을 쓴다.
+`docs/video-spec.md`의 5단계 구조(문제 → 왜 그럴까 → 레포 추천 → 스타 → 팔로우 후 댓글)와 `docs/script-prompt.md`의 형식을 따라 대본을 쓴다.
 
 ## 규칙
 - 한국어/영어 버전을 모두 작성하고, 영상 장면은 동일하게 유지한다 (자막/음성만 언어별로 다름).

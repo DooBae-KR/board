@@ -13,5 +13,5 @@ netlify/generated/
 .kr-picks.json
 .kis-token.json
 video/fonts/
-video/markitdown/stills/
+video/story/stills/
 *.mp4
