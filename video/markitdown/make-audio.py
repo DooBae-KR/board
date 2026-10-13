@@ -10,25 +10,24 @@ import numpy as np
 from gtts import gTTS
 
 lang, src, dst = sys.argv[1:4]
-SR, DUR = 44100, 40.0
-# (시작 초, 말할 수 있는 최대 길이 초, 문장) — 장면 구간: 0-3.5 / 3.5-8 / 8-15 / 15-20 / 20-28 / 28-33 / 33-40
+SR, DUR = 44100, 50.5
+GLOBAL_TEMPO = 1.22  # 기본 말하기 속도(gTTS는 느리다). 1.3을 넘기면 부자연스럽다
+# (시작 초, 말할 수 있는 최대 길이 초, 문장) — 장면 구간: 0-6 / 6-12 / 12-22 / 22-28.5 / 28.5-37 / 37-42.5 / 42.5-50.5
 LINES = {
- 'ko': [(0.3, 3.4, 'AI한테 넣었더니 다 깨졌죠?'),
-        (4.3, 3.4, '표가 한 줄씩 흩어져요.'),
-        (8.3, 6.6, '마이크로소프트 오픈소스, 마크잇다운. 파일을 AI가 읽게 바꿔줘요.'),
-        (15.4, 4.2, '설치는 한 줄이면 끝!'),
-        (20.4, 4.2, '워드, PDF, 엑셀도 한 줄!'),
-        (25.2, 2.8, '표 구조가 그대로예요.'),
-        (28.3, 4.4, '이미지, 음성, 유튜브 링크까지 지원해요.'),
-        (33.3, 6.5, '먼저 팔로우하고, 링크라고 댓글 남겨 주세요. DM으로 보내드려요.')],
- 'en': [(0.3, 3.4, 'Pasted a document into AI, and it broke?'),
-        (4.3, 3.4, 'Tables fall apart when you paste.'),
-        (8.3, 6.6, 'MarkItDown, open source from Microsoft. It turns your files into Markdown that AI can read.'),
-        (15.4, 4.2, 'Install it with one command.'),
-        (20.4, 4.2, 'Word, PDF, Excel. One line.'),
-        (25.2, 2.8, 'And the table structure survives.'),
-        (28.3, 4.4, 'Image OCR, audio transcription, even YouTube links.'),
-        (33.3, 6.5, "Want the GitHub link? Follow first, then comment link on this video, and I'll DM it to you.")],
+ 'ko': [(0.3, 5.4, 'AI한테 문서를 넣었더니 다 깨졌죠? 누구나 한 번쯤 겪어요.'),
+        (6.3, 5.4, '붙여넣으면 표가 한 줄씩 흩어지고, 구조가 다 사라져요.'),
+        (12.3, 9.4, '마이크로소프트가 만든 오픈소스, 마크잇다운이에요. 파일을 AI가 읽기 좋은 마크다운으로 바꿔줘요.'),
+        (22.3, 5.8, '설치는 파이썬 명령어 한 줄이면 끝나요. 복잡한 설정은 필요 없어요.'),
+        (28.8, 8.0, '워드, PDF, 엑셀도 한 줄로 변환하면, 제목은 제목, 표는 표 그대로 마크다운이 돼요.'),
+        (37.3, 4.9, '이미지 속 글자, 음성, 유튜브 링크까지 지원해요.'),
+        (42.8, 7.4, '깃허브 주소가 필요하면 먼저 팔로우하고, 링크라고 댓글 남겨 주세요. DM으로 보내드려요.')],
+ 'en': [(0.3, 5.4, 'Ever pasted a document into AI, and the text came out garbled? Almost everyone has.'),
+        (6.3, 5.4, 'Paste a table, and it scatters line by line. The structure is gone.'),
+        (12.3, 9.4, "That's where MarkItDown comes in. It's open source from Microsoft, and it turns your files into Markdown that AI can actually read."),
+        (22.3, 5.8, 'Install it with one Python command. No complicated setup.'),
+        (28.8, 8.0, 'Run it on Word, PDF, or Excel files, and headings stay headings, and tables stay tables.'),
+        (37.3, 4.9, 'It even reads text in images, audio, and YouTube links.'),
+        (42.8, 7.4, "Want the GitHub link? Follow first, then comment link on this video, and I'll DM it to you.")],
 }[lang]
 
 def dur(p):
@@ -59,7 +58,7 @@ inputs, filters, labels = [], [], []
 for i, (start, maxd, text) in enumerate(LINES):
     mp3 = tmp/f'n{i}.mp3'
     gTTS(text, lang=lang).save(str(mp3))
-    d = dur(str(mp3)); tempo = max(1.0, min(1.2, d/maxd))
+    d = dur(str(mp3)); tempo = min(1.35, max(GLOBAL_TEMPO, d/maxd))
     if d/tempo > maxd + 0.4: print(f'경고: {i}번 문장이 {maxd}초를 넘어요 ({d/tempo:.1f}초)', file=sys.stderr)
     inputs += ['-i', str(mp3)]
     filters.append(f'[{i+2}:a]atempo={tempo:.3f},adelay={int(start*1000)}|{int(start*1000)},apad[v{i}]')

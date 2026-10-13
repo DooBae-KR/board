@@ -9,7 +9,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const [lang = 'ko', out = `markitdown-${lang}.mp4`] = process.argv.slice(2);
 const stillsArg = process.argv.indexOf('--stills');
 const stills = stillsArg > 0 ? process.argv[stillsArg + 1].split(',').map(Number) : [];
-const FPS = 30, DURATION = 40;
+const FPS = 30, DURATION = 50.5;
 
 let chromium;
 try { ({ chromium } = await import('playwright')); }
@@ -35,7 +35,7 @@ const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-fr
   '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo', '-shortest',
   '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18', '-preset', 'medium', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', out], { stdio: ['pipe', 'inherit', 'inherit'] });
 const done = new Promise((r) => ff.on('close', r));
-for (let f = 0; f < FPS * DURATION; f++) {
+for (let f = 0; f < Math.round(FPS * DURATION); f++) {
   await page.evaluate((t) => setT(t), f / FPS);
   const buf = await page.screenshot({ type: 'jpeg', quality: 94 });
   if (!ff.stdin.write(buf)) await new Promise((r) => ff.stdin.once('drain', r));
