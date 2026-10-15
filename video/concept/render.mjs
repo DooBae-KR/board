@@ -1,7 +1,7 @@
-// 사용: node video/concept/render.mjs <stories/xxx.json> <출력.mp4> [--stills 1,5,9]
+// 사용: node video/concept/render.mjs <stories/xxx.json> <출력.mp4> [--stills 1,5,9] [--character character/dali.svg]
 // index.html을 프레임 단위로 그려(setT) ffmpeg로 인코딩한다. 무음 영상(음성·효과음은 make-audio.py).
 import { spawn } from 'node:child_process';
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -9,6 +9,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const [storyPath, out = 'concept.mp4'] = process.argv.slice(2);
 if (!storyPath) { console.error('story json 경로가 필요합니다'); process.exit(1); }
 const story = JSON.parse(readFileSync(storyPath, 'utf8'));
+const charIdx = process.argv.indexOf('--character');
+const charFile = charIdx > 0 ? process.argv[charIdx + 1] : join(here, 'character', 'dali.svg');
+const charSvg = existsSync(charFile) ? readFileSync(charFile, 'utf8') : null;
 const stillsArg = process.argv.indexOf('--stills');
 const stills = stillsArg > 0 ? process.argv[stillsArg + 1].split(',').map(Number) : [];
 const FPS = 30, DURATION = story.cuts.at(-1).t1;
@@ -20,7 +23,7 @@ const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PAT
 const page = await browser.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
 await page.goto(pathToFileURL(join(here, 'index.html')).href);
 await page.evaluate(() => document.fonts.ready);
-await page.evaluate((s) => build(s), story);
+await page.evaluate(([s, c]) => build(s, c), [story, charSvg]);
 
 if (stills.length) {
   mkdirSync(join(here, 'stills'), { recursive: true });

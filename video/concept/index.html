@@ -100,7 +100,9 @@ const MOODS={
  happy:{aL:-40,aR:40,bl:-12,br:-12,t:-5,e:22,mx:32,my:12},
  point:{aL:8,aR:-100,bl:-8,br:-8,t:2,e:23,mx:24,my:8},
 };
-function build(story){
+function build(story,charSvg){
+ // 마스코트 SVG는 video/concept/character/*.svg 파일을 render.mjs가 읽어 넘겨 준다(없으면 이 파일 안의 임시 그림을 쓴다)
+ if(charSvg){const w=document.getElementById('bitwrap');w.innerHTML=charSvg;const sv=w.querySelector('svg');sv.id='bit';sv.setAttribute('width','270');sv.setAttribute('height','326')}
  S=story;END=story.cuts.at(-1).t1;
  const st=document.getElementById('stage');
  story.cuts.forEach((c,i)=>{
