@@ -1,0 +1,219 @@
+{
+  "id": "mcp-ko",
+  "lang": "ko",
+  "keyword": "MCP",
+  "cuts": [
+    {
+      "t0": 0,
+      "t1": 2.5,
+      "type": "hook",
+      "k": "궁금하지 않나요?",
+      "words": [
+        "AI는",
+        "어떻게",
+        "<em>내 파일을</em>",
+        "쓸까?"
+      ],
+      "sfx": [
+        "thud"
+      ],
+      "say": "AI는 어떻게 내 파일을 쓸까요?",
+      "mood": "think",
+      "react": "궁금하죠?"
+    },
+    {
+      "t0": 2.5,
+      "t1": 8,
+      "type": "flow",
+      "nodes": [
+        "AI",
+        "내 파일"
+      ],
+      "link": "ok",
+      "tone": "good",
+      "badge": "이럴 것 같죠",
+      "sfx": [
+        "pop",
+        "tick",
+        "ding"
+      ],
+      "say": "AI에게 도구를 쥐여 주면 알아서 척척 할 것 같죠.",
+      "k": "1 · 기대",
+      "mood": "happy",
+      "react": "이러면 좋겠죠?"
+    },
+    {
+      "t0": 8,
+      "t1": 11.5,
+      "type": "flow",
+      "nodes": [
+        "AI",
+        "내 파일"
+      ],
+      "link": "broken",
+      "tone": "bad",
+      "badge": "닿지 못함",
+      "sfx": [
+        "crack",
+        "thud"
+      ],
+      "say": "하지만 AI 혼자서는 닿지 못해요.",
+      "k": "2 · 현실",
+      "mood": "wow",
+      "react": "어라, 끊겼네!"
+    },
+    {
+      "t0": 11.5,
+      "t1": 15,
+      "type": "flow",
+      "nodes": [
+        "AI",
+        "내 파일"
+      ],
+      "link": "slot",
+      "tone": "bad",
+      "badge": "통로?",
+      "sfx": [
+        "riser"
+      ],
+      "say": "연결 통로가 있어야 바깥 자료를 쓸 수 있죠.",
+      "k": "3 · 필요한 것",
+      "mood": "think",
+      "react": "길이 필요해요"
+    },
+    {
+      "t0": 15,
+      "t1": 19.5,
+      "type": "flow",
+      "nodes": [
+        "AI",
+        "내 파일"
+      ],
+      "link": "filled",
+      "fill": "MCP",
+      "tone": "good",
+      "badge": "공개 표준",
+      "sfx": [
+        "pop",
+        "ding"
+      ],
+      "say": "MCP는 AI 앱과 외부를 잇는 공개 표준이에요.",
+      "k": "4 · 해답",
+      "mood": "happy",
+      "react": "이게 핵심!"
+    },
+    {
+      "t0": 19.5,
+      "t1": 24,
+      "type": "flow",
+      "nodes": [
+        "호스트",
+        "클라이언트",
+        "서버"
+      ],
+      "link": "ok",
+      "tone": "good",
+      "chips": [
+        "도구",
+        "자원",
+        "프롬프트"
+      ],
+      "note": "예: VS Code",
+      "sfx": [
+        "pop",
+        "tick",
+        "tick",
+        "pop"
+      ],
+      "say": "앱은 서버마다 클라이언트를 하나씩 만들어 연결해요.",
+      "k": "5 · 구조",
+      "mood": "point",
+      "react": "한 칸씩 봐요"
+    },
+    {
+      "t0": 24,
+      "t1": 27.5,
+      "type": "flow",
+      "nodes": [
+        "클라이언트",
+        "서버"
+      ],
+      "link": "ok",
+      "tone": "good",
+      "bubble": "목록?",
+      "chips": [
+        "날씨 도구"
+      ],
+      "sfx": [
+        "pop",
+        "tick",
+        "ding"
+      ],
+      "say": "서버가 내놓은 도구 목록을 앱이 물어요.",
+      "k": "6 · 사용 (1)",
+      "mood": "point",
+      "react": "목록을 물어봐요"
+    },
+    {
+      "t0": 27.5,
+      "t1": 31,
+      "type": "call",
+      "tool": "날씨 도구",
+      "input": "샌프란시스코",
+      "output": "68°F 구름",
+      "count": 68,
+      "note": "공식 문서 예시",
+      "sfx": [
+        "tick",
+        "pop",
+        "ding"
+      ],
+      "say": "날씨 도구에 샌프란시스코를 넣고 부르면 날씨가 와요.",
+      "k": "6 · 사용 (2)",
+      "mood": "point",
+      "react": "넣으면 와요!"
+    },
+    {
+      "t0": 31,
+      "t1": 35,
+      "type": "repo",
+      "summary": "MCP = AI 앱의 연결 표준",
+      "name": "korean-law-mcp",
+      "stars": 2700,
+      "starsLabel": "약 3천 · 2026.10",
+      "chips": [
+        "MIT",
+        "법제처 키 필요",
+        "개인 개발자 도구",
+        "법률 자문 아님"
+      ],
+      "sfx": [
+        "thud",
+        "tick",
+        "ding"
+      ],
+      "say": "법령 서버 korean-law-mcp, 별 약 3천, MIT예요.",
+      "mood": "happy",
+      "react": "이런 서버도 있어요"
+    },
+    {
+      "t0": 35,
+      "t1": 38,
+      "type": "cta",
+      "k": "필요한 분은 먼저 팔로우",
+      "keyword": "MCP",
+      "steps": [
+        "댓글",
+        "DM",
+        "링크 받기"
+      ],
+      "sfx": [
+        "pop",
+        "pop"
+      ],
+      "say": "팔로우 후 MCP 댓글, DM으로 링크 드려요.",
+      "mood": "point",
+      "react": "같이 해봐요!"
+    }
+  ]
+}

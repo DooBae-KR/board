@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<style>
+/* 아트 디렉션(밝은 팝 테마): 크림 배경 + 굵은 먹색 외곽선 + 단단한 그림자. 색 역할 고정(보라=구조/강조, 민트=성공, 코랄=문제, 해=강조). 한 컷에 강조 하나 */
+@font-face{font-family:P;src:url(../fonts/Pretendard-Regular.otf);font-weight:400}
+@font-face{font-family:P;src:url(../fonts/Pretendard-Bold.otf);font-weight:700}
+:root{--bg:#fff6e5;--ink:#1c2040;--mut:#5b6088;--vio:#6c4bff;--mint:#12b886;--mintl:#c9f4e4;--red:#ff5d73;--redl:#ffd9de;--sun:#ffc233;--sunl:#fff0bf;--card:#fff;--sky:#4dabf7}
+*{box-sizing:border-box;margin:0}
+html,body{width:1080px;height:1920px;overflow:hidden;background:var(--bg)}
+body{font-family:P,'WenQuanYi Zen Hei',sans-serif;color:var(--ink);word-break:keep-all;overflow-wrap:anywhere}
+#stage{position:relative;width:1080px;height:1920px;overflow:hidden;background:
+ radial-gradient(circle at 12% 6%,#ffe0a3 0,transparent 38%),radial-gradient(circle at 95% 30%,#d9ceff 0,transparent 36%),radial-gradient(circle at 8% 78%,#c9f4e4 0,transparent 34%),var(--bg)}
+#dots{position:absolute;inset:0;background-image:radial-gradient(rgba(28,32,64,.13) 3px,transparent 3.5px);background-size:48px 48px;-webkit-mask-image:linear-gradient(#000,transparent 70%)}
+#bar{position:absolute;left:70px;right:70px;top:84px;height:14px;border-radius:7px;background:#fff;border:3px solid var(--ink)}
+#bar i{display:block;height:100%;border-radius:4px;background:var(--vio);width:0}
+#tag{position:absolute;left:70px;top:122px;font-size:32px;font-weight:700;background:var(--sun);border:3px solid var(--ink);border-radius:14px;padding:4px 18px;transform:rotate(-3deg);box-shadow:4px 4px 0 var(--ink)}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+#wipe{position:absolute;top:0;bottom:0;width:300px;left:-400px;background:linear-gradient(90deg,transparent,rgba(108,75,255,.55),transparent);pointer-events:none}
+.cut{position:absolute;inset:0;display:none}
+.safe{position:absolute;left:70px;right:100px;top:225px;bottom:830px;display:flex;flex-direction:column;justify-content:flex-start;gap:24px}
+[data-a]{opacity:0}
+.kick{font-size:48px;font-weight:700;color:var(--vio)}
+.hero{font-size:132px;line-height:1.14;font-weight:700;letter-spacing:-.03em;display:flex;flex-wrap:wrap;gap:0 28px}
+.hero em{font-style:normal;background:linear-gradient(transparent 58%,var(--sun) 58%)}
+.panel{flex:1;min-height:0;background:var(--card);border:4px solid var(--ink);border-radius:44px;box-shadow:10px 10px 0 var(--ink);padding:36px 32px;display:flex;flex-direction:column;gap:32px;justify-content:center}
+.flow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.node{flex:1;min-width:0;white-space:nowrap;text-align:center;font-size:72px;font-weight:700;line-height:1.2;padding:60px 10px;border-radius:30px;background:#fff;border:4px solid var(--ink);box-shadow:6px 6px 0 var(--ink)}
+.node.n3{font-size:50px;padding:46px 4px;border-radius:26px}.node.long{font-size:54px}.node.n3.long{font-size:38px}
+.node.on{background:var(--sun)}
+.link{flex:0 0 220px;height:120px;position:relative}.link.sm{flex:0 0 70px}
+.link svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.slot{position:absolute;inset:6px 0;border:5px dashed var(--red);border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:64px;font-weight:700;color:var(--red);background:var(--redl)}
+.fill{position:absolute;inset:0;border-radius:24px;background:var(--vio);color:#fff;border:4px solid var(--ink);display:flex;align-items:center;justify-content:center;font-size:54px;font-weight:700;box-shadow:5px 5px 0 var(--ink)}
+.badge{align-self:flex-start;font-size:58px;font-weight:700;padding:14px 38px;border-radius:20px;border:4px solid var(--ink);box-shadow:5px 5px 0 var(--ink)}
+.badge.good{background:var(--mint);color:#fff}.badge.bad{background:var(--red);color:#fff}.badge.yel{background:var(--sun)}
+.chips{display:flex;flex-wrap:wrap;gap:16px}
+.chip{font-size:50px;font-weight:700;padding:14px 34px;border-radius:999px;background:#fff;border:4px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
+.chip.a{background:var(--vio);color:#fff}
+.note{font-size:42px;color:var(--mut);font-weight:700}
+.bubble{position:absolute;left:50%;top:-86px;transform:translateX(-50%);font-size:44px;font-weight:700;padding:8px 24px;border-radius:20px;background:var(--sun);border:4px solid var(--ink);white-space:nowrap;box-shadow:4px 4px 0 var(--ink)}
+.callv{display:flex;flex-direction:column;align-items:center;gap:2px}
+.io{font-size:54px;font-weight:700;padding:16px 44px;border-radius:26px;text-align:center;line-height:1.2;min-width:480px;border:4px solid var(--ink);box-shadow:5px 5px 0 var(--ink)}
+.io.in{background:var(--sunl)}.io.out{background:var(--mintl)}
+.tool{text-align:center;font-size:58px;font-weight:700;padding:22px 8px;min-width:600px;border-radius:28px;background:var(--vio);color:#fff;border:4px solid var(--ink);box-shadow:6px 6px 0 var(--ink)}
+.arr{font-size:48px;color:var(--vio);font-weight:700;line-height:1}
+.sum{font-size:68px;font-weight:700;line-height:1.25}
+.rname{font-size:96px;font-weight:700;letter-spacing:-.03em;color:var(--vio)}
+.stars{font-size:120px;font-weight:700;line-height:1}
+.kw{display:inline-block;font-size:190px;font-weight:700;padding:10px 54px 24px;border-radius:48px;background:var(--vio);color:#fff;align-self:flex-start;border:5px solid var(--ink);box-shadow:10px 10px 0 var(--ink)}
+.steps{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.st{font-size:56px;font-weight:700;padding:14px 28px;border-radius:20px;background:#fff;border:4px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
+.pic{display:flex;align-items:center;justify-content:center;gap:48px;height:420px}.pic svg{height:420px;width:auto}
+/* 캐릭터 줄: 비트 + 말풍선 */
+#host{position:absolute;left:50px;right:90px;top:1110px;height:290px;display:flex;align-items:flex-end;gap:20px;z-index:3}
+#bitwrap{width:270px;height:326px;flex:none;margin-bottom:-14px}
+#say{position:relative;flex:1;margin-bottom:84px;font-size:52px;font-weight:700;background:#fff;border:4px solid var(--ink);border-radius:30px;padding:20px 28px;box-shadow:6px 6px 0 var(--ink);line-height:1.25}
+#say:before{content:"";position:absolute;left:-24px;bottom:30px;width:0;height:0;border:16px solid transparent;border-right:24px solid var(--ink);border-left:0}
+#say:after{content:"";position:absolute;left:-14px;bottom:34px;width:0;height:0;border:12px solid transparent;border-right:18px solid #fff;border-left:0}
+</style></head>
+<body><div id="stage"><div id="dots"></div><div id="bar"><i></i></div><div id="tag">AI · 개발 개념</div>
+<div id="host"><div id="bitwrap"><svg id="bit" viewBox="0 0 240 290" width="270" height="326">
+ <g id="bitroot">
+  <g id="ant"><line x1="120" y1="64" x2="120" y2="30" stroke="#1c2040" stroke-width="8" stroke-linecap="round"/><circle cx="120" cy="22" r="13" fill="#12b886" stroke="#1c2040" stroke-width="6"/></g>
+  <ellipse cx="86" cy="268" rx="30" ry="14" fill="#ff9f1c" stroke="#1c2040" stroke-width="6"/><ellipse cx="154" cy="268" rx="30" ry="14" fill="#ff9f1c" stroke="#1c2040" stroke-width="6"/>
+  <g id="armL"><ellipse cx="32" cy="190" rx="20" ry="36" fill="#ffd23f" stroke="#1c2040" stroke-width="6"/></g>
+  <g id="armR"><ellipse cx="208" cy="190" rx="20" ry="36" fill="#ffd23f" stroke="#1c2040" stroke-width="6"/></g>
+  <ellipse cx="120" cy="170" rx="90" ry="100" fill="#ffd23f" stroke="#1c2040" stroke-width="7"/>
+  <ellipse cx="120" cy="198" rx="52" ry="56" fill="#fff1b8"/>
+  <circle cx="62" cy="176" r="16" fill="#ff8fa3" opacity=".85"/><circle cx="178" cy="176" r="16" fill="#ff8fa3" opacity=".85"/>
+  <circle id="eL" cx="90" cy="142" r="22" fill="#fff" stroke="#1c2040" stroke-width="6"/><circle id="eR" cx="150" cy="142" r="22" fill="#fff" stroke="#1c2040" stroke-width="6"/>
+  <circle id="pL" cx="90" cy="144" r="10" fill="#1c2040"/><circle id="pR" cx="150" cy="144" r="10" fill="#1c2040"/>
+  <path id="bL" d="M68 112 L112 112" stroke="#1c2040" stroke-width="7" stroke-linecap="round" fill="none"/><path id="bR" d="M128 112 L172 112" stroke="#1c2040" stroke-width="7" stroke-linecap="round" fill="none"/>
+  <ellipse id="mouth" cx="120" cy="200" rx="22" ry="6" fill="#8a1c2b" stroke="#1c2040" stroke-width="5"/>
+ </g></svg></div><div id="say"></div></div>
+<div id="wipe"></div><div id="flash"></div></div>
+<script>
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const seg=(t,a,d)=>clamp((t-a)/d);
+const outC=p=>1-Math.pow(1-p,3);
+const back=p=>{const c1=2.2,c3=c1+1;return 1+c3*Math.pow(p-1,3)+c1*Math.pow(p-1,2)};
+const shake=(t,a,amp)=>{const p=seg(t,a,.3);return p>=1?0:Math.sin(p*Math.PI*4)*amp*(1-p)};
+let S=null,END=0;
+const fx={
+ pop:(p)=>({o:clamp(p*3),tr:`scale(${(.55+.45*back(p)).toFixed(4)})`}),
+ up:(p)=>({o:clamp(p*2),tr:`translateY(${((1-outC(p))*40).toFixed(2)}px)`}),
+ slam:(p)=>({o:clamp(p*6),tr:`translateY(${((1-outC(p))*-160).toFixed(2)}px) scale(${(1+.12*(1-outC(p))).toFixed(4)})`}),
+};
+// 비트 표정: 팔 각도(도), 눈썹 y 오프셋(좌/우)과 기울기, 눈 크기, 입 가로/세로 기본값
+const MOODS={
+ idle:{aL:8,aR:-8,bl:0,br:0,t:0,e:22,mx:22,my:6},
+ think:{aL:8,aR:-120,bl:-10,br:-6,t:6,e:22,mx:14,my:6},
+ wow:{aL:-130,aR:130,bl:-16,br:-16,t:4,e:27,mx:20,my:22},
+ happy:{aL:-40,aR:40,bl:-12,br:-12,t:-5,e:22,mx:32,my:12},
+ point:{aL:8,aR:-100,bl:-8,br:-8,t:2,e:23,mx:24,my:8},
+};
+function build(story){
+ S=story;END=story.cuts.at(-1).t1;
+ const st=document.getElementById('stage');
+ story.cuts.forEach((c,i)=>{
+  const d=document.createElement('div');d.className='cut';d.id='c'+i;
+  const A=(a,f='pop',dur=.28)=>`data-a="${a}" data-f="${f}" data-d="${dur}"`;
+  let h='';
+  const K=()=>c.k?`<div class="kick" ${A(.02,'up')}>${esc(c.k)}</div>`:'';
+  if(c.type==='hook'){
+   h=`<div class="kick" ${A(.1,'up')}>${esc(c.k)}</div><div class="hero">${c.words.map((w,j)=>`<span ${A(.12+j*.18,'pop',.22)}>${w.replace(/<(?!\/?em>)/g,'&lt;')}</span>`).join('')}</div>
+   <div class="pic" ${A(.5,'up',.3)}><svg viewBox="0 0 260 260"><rect x="30" y="50" width="200" height="170" rx="22" fill="#fff" stroke="#1c2040" stroke-width="8"/><rect x="50" y="76" width="160" height="56" rx="12" fill="#fff0bf" stroke="#1c2040" stroke-width="5"/><rect x="50" y="146" width="160" height="56" rx="12" fill="#fff0bf" stroke="#1c2040" stroke-width="5"/><circle cx="130" cy="104" r="10" fill="#1c2040"/><circle cx="130" cy="174" r="10" fill="#1c2040"/><rect x="92" y="14" width="76" height="46" rx="14" fill="none" stroke="#ff5d73" stroke-width="9"/><rect x="84" y="38" width="92" height="52" rx="12" fill="#ff5d73" stroke="#1c2040" stroke-width="6"/><circle cx="130" cy="64" r="8" fill="#1c2040"/></svg></div>`;
+  }
+  else if(c.type==='flow'){
+   const n=c.nodes,two=n.length===2;
+   const link=(j,kind)=>{
+     if(two&&kind!=='ok') {
+       if(kind==='broken') return `<div class="link"><svg viewBox="0 0 240 120"><line id="l${i}a" x1="0" y1="60" x2="96" y2="60" stroke="#ff5d73" stroke-width="10" stroke-linecap="round"/><line x1="150" y1="60" x2="240" y2="60" stroke="#ff5d73" stroke-width="10" stroke-linecap="round" stroke-dasharray="6 16" opacity=".6"/><text id="l${i}x" x="123" y="80" text-anchor="middle" font-size="68" font-weight="700" fill="#ff5d73">✗</text></svg></div>`;
+       if(kind==='slot') return `<div class="link"><div class="slot" id="slot${i}">?</div></div>`;
+       if(kind==='filled') return `<div class="link"><div class="fill" id="fill${i}">${esc(c.fill)}</div></div>`;
+     }
+     return `<div class="link ${two?'':'sm'}"><svg viewBox="0 0 ${two?240:84} 120"><line x1="0" y1="60" x2="${two?232:78}" y2="60" stroke="#6c4bff" stroke-width="10" stroke-linecap="round"/><path d="M${two?208:60} 34 L${two?238:84} 60 L${two?208:60} 86" fill="none" stroke="#6c4bff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><circle id="dot${i}_${j}" cx="0" cy="60" r="13" fill="#12b886" stroke="#1c2040" stroke-width="4"/></svg>${c.bubble&&j===0?`<div class="bubble" ${A(.5,'pop')}>${esc(c.bubble)}</div>`:''}</div>`;
+   };
+   let row='';
+   n.forEach((x,j)=>{ row+=(j?link(j-1,c.link):'')+`<div class="node${n.length>2?' n3':''}${x.length>=5?' long':''}" id="n${i}_${j}" ${A(.12+j*.22,'slam',.34)}>${esc(x)}</div>`; });
+   h=`${K()}<div class="panel"><div class="flow">${row}</div>
+   ${c.badge?`<div class="badge ${c.tone==='bad'?'bad':c.tone==='good'?'good':'yel'}" ${A(.9,'pop')} id="b${i}">${c.tone==='bad'?'✗':'✓'} ${esc(c.badge)}</div>`:''}
+   ${c.chips?`<div class="chips">${c.chips.map((x,j)=>`<div class="chip ${j===0?'a':''}" ${A(1.1+j*.25,'pop',.22)}>${esc(x)}</div>`).join('')}</div>`:''}
+   ${c.note?`<div class="note" ${A(2.2,'up')}>${esc(c.note)}</div>`:''}</div>`;
+  }
+  else if(c.type==='call'){
+   h=`${K()}<div class="panel"><div class="callv"><div class="io in" id="in${i}" ${A(.15,'slam',.3)}>${esc(c.input)}</div><div class="arr" ${A(.4,'pop')}>↓</div><div class="tool" ${A(.05,'pop')}>${esc(c.tool)}</div><div class="arr" ${A(.8,'pop')}>↓</div><div class="io out" id="out${i}" ${A(1.0,'pop')}>…</div></div>
+   <div class="badge good" ${A(1.5,'pop')}>✓ 값을 넣어 호출</div><div class="note" ${A(1.9,'up')}>${esc(c.note)}</div></div>`;
+  }
+  else if(c.type==='repo'){
+   h=`<div class="sum" ${A(.05,'up')}>${esc(c.summary)}</div>
+   <div class="panel" ${A(.35,'slam',.36)}><div class="rname">${esc(c.name)}</div><div class="stars">★ <span id="st${i}">0</span></div><div class="note">${esc(c.starsLabel)}</div>
+   <div class="chips">${c.chips.map((x,j)=>`<div class="chip ${j===0?'a':''}" ${A(1.1+j*.2,'pop',.22)}>${esc(x)}</div>`).join('')}</div></div>`;
+  }
+  else if(c.type==='cta'){
+   h=`<div class="kick" ${A(.05,'up')}>${esc(c.k)}</div><div class="panel"><div class="kw" id="kw${i}" ${A(.3,'pop',.3)}>${esc(c.keyword)}</div>
+   <div class="steps">${c.steps.map((x,j)=>`${j?`<div class="arr" ${A(.8+j*.4,'pop',.2)}>→</div>`:''}<div class="st" ${A(.8+j*.4,'pop',.24)}>${esc(x)}</div>`).join('')}</div></div>`;
+  }
+  d.innerHTML='<div class="safe">'+h+'</div>';st.insertBefore(d,document.getElementById('host'));
+ });
+ setT(0);
+}
+function fmt(n){return Math.round(n).toLocaleString('en-US')}
+const lerp=(a,b,p)=>a+(b-a)*p;
+function setT(t){
+ document.querySelector('#bar i').style.width=(clamp(t/END)*100)+'%';
+ let on=-1;
+ S.cuts.forEach((c,i)=>{const el=document.getElementById('c'+i);const a=t>=c.t0&&t<c.t1;el.style.display=a?'block':'none';if(a)on=i});
+ if(on<0)return;
+ const c=S.cuts[on],el=document.getElementById('c'+on),tl=t-c.t0,dur=c.t1-c.t0;
+ el.style.opacity=clamp(Math.min(1,(dur-tl)/.1));
+ const w=document.getElementById('wipe');const wp=on>0?seg(tl,0,.16):1;w.style.left=(-400+wp*1560)+'px';w.style.opacity=on>0&&wp<1?1:0;
+ document.getElementById('flash').style.opacity=on===0?(.22*(1-seg(tl,0,.12))).toFixed(3):0;
+ el.querySelectorAll('[data-a]').forEach(n=>{
+  const p=seg(tl,parseFloat(n.dataset.a),parseFloat(n.dataset.d));const r=fx[n.dataset.f](p);
+  n.style.opacity=r.o;n.style.transform=r.tr;
+ });
+ const g=(id)=>document.getElementById(id);
+ if(c.type==='flow'){
+  const n=c.nodes.length;
+  if(n===3||(c.chips&&n===2)||c.bubble){const act=Math.floor((tl-.7)/.6);for(let j=0;j<n;j++){g(`n${on}_${j}`).classList.toggle('on',act>=0&&act%n===j&&tl<dur-.2)}}
+  for(let j=0;j<n-1;j++){const d=g(`dot${on}_${j}`);if(d){const p=((tl*1.1+j*.3)%1);d.setAttribute('cx',(p*(n===2?232:78)).toFixed(1));d.setAttribute('opacity',tl>.45?1:0)}}
+  if(c.link==='broken'){g(`l${on}a`).setAttribute('x2',(96*outC(seg(tl,.3,.25))).toFixed(1));const x=g(`l${on}x`);x.setAttribute('opacity',seg(tl,.55,.2));x.setAttribute('transform',`translate(${shake(tl,.55,10).toFixed(1)},0)`);
+   const b=g(`b${on}`);if(b)b.style.transform+=` translateX(${shake(tl,.9,12).toFixed(1)}px)`}
+  if(c.link==='slot'){g(`slot${on}`).style.opacity=clamp(seg(tl,.2,.2)*(.65+.35*Math.abs(Math.sin(tl*6))))}
+  if(c.link==='filled'){const f=g(`fill${on}`);const p=seg(tl,.2,.3);f.style.opacity=clamp(p*3);f.style.transform=`scale(${(.5+.5*back(p)).toFixed(3)})`}
+ }
+ if(c.type==='call'){const q=seg(tl,1.0,.8);g(`out${on}`).textContent=q<=0?'…':c.output.replace(String(c.count),fmt(c.count*outC(q)))}
+ if(c.type==='repo'){g(`st${on}`).textContent=fmt(c.stars*outC(seg(tl,.5,1.2)))}
+ if(c.type==='cta'){const k=g(`kw${on}`);const pulse=tl>.7&&tl<1.9?1+.06*Math.sin((tl-.7)/1.2*Math.PI*4):1;k.style.transform+=` scale(${pulse.toFixed(4)})`}
+ // 비트: 표정은 이전 컷에서 0.2초 동안 부드럽게 바뀐다. 말하는 동안 입이 움직이고 몸이 살짝 흔들린다
+ const cur=MOODS[c.mood||'idle'],prv=MOODS[(S.cuts[on-1]||c).mood||'idle'],m=seg(tl,0,.2);
+ const L=k=>lerp(prv[k],cur[k],m);
+ const speaking=tl>.15&&tl<dur-.2;
+ const my=speaking?L('my')*(.45+.55*Math.abs(Math.sin(tl*15))):L('my')*.35+2;
+ const s=(id,a,v)=>g(id).setAttribute(a,v);
+ const bob=Math.sin(t*5)*5;
+ s('bitroot','transform',`translate(0,${bob.toFixed(2)})`);
+ s('ant','transform',`rotate(${(Math.sin(t*6)*9).toFixed(1)} 120 64)`);
+ s('armL','transform',`rotate(${L('aL').toFixed(1)} 50 150)`);
+ s('armR','transform',`rotate(${(L('aR')+(c.mood==='point'?Math.sin(tl*9)*6:0)).toFixed(1)} 190 150)`);
+ s('mouth','rx',L('mx').toFixed(1));s('mouth','ry',my.toFixed(1));
+ s('eL','r',L('e').toFixed(1));s('eR','r',L('e').toFixed(1));
+ const lk=Math.sin(t*1.7)*4;s('pL','cx',(90+lk).toFixed(1));s('pR','cx',(150+lk).toFixed(1));
+ const blink=(t%3.2)<.12?.15:1;s('pL','ry',(10*blink).toFixed(1));s('pR','ry',(10*blink).toFixed(1));
+ s('bL','d',`M68 ${112+L('bl')+L('t')} L112 ${112+L('bl')-L('t')}`);s('bR','d',`M128 ${112+L('br')-L('t')} L172 ${112+L('br')+L('t')}`);
+ const bw=g('bitwrap');bw.style.transform=`scale(${(on===0?(.6+.4*back(seg(tl,0,.3))):1).toFixed(3)})`;bw.style.transformOrigin='50% 100%';
+ const sy=g('say');if(sy.dataset.cut!==String(on)){sy.dataset.cut=String(on);sy.textContent=c.react||''}
+ const sp=seg(tl,.1,.22);sy.style.opacity=clamp(sp*3);sy.style.transform=`scale(${(.7+.3*back(sp)).toFixed(3)})`;sy.style.transformOrigin='0% 80%';
+}
+</script></body></html>
