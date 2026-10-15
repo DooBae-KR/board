@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """나레이션(gTTS) + 직접 합성한 배경음을 만들어 영상에 입힌다.
-사용: python3 video/concept/make-audio.py <stories/xxx.json> <입력.mp4> <출력.mp4> [--no-subs] [--speed 1.2]  (나레이션 + 합성 효과음 + 배경음 + 자막)  (자막을 영상에 새기고 같은 이름의 .srt도 만든다)
+사용: python3 video/concept/make-audio.py <stories/xxx.json> <입력.mp4> <출력.mp4> [--no-subs] [--speed 1.2] [--bgm none|pluck|lofi|bounce|musicbox]  (나레이션 + 합성 효과음 + 배경음 + 자막)  (자막을 영상에 새기고 같은 이름의 .srt도 만든다)
 필요: pip install gTTS numpy, ffmpeg. 배경음은 사인파로 합성한 것이라 저작권 문제가 없다.
 gTTS는 구글 번역의 비공식 음성이다. 수익화 채널에서는 약관과 음질을 확인하고, 필요하면 업로드 앱의 음성으로 바꾼다.
 """
@@ -16,6 +16,8 @@ lang = STORY['lang']
 SUBS = '--no-subs' not in sys.argv
 SPEED = float(sys.argv[sys.argv.index('--speed') + 1]) if '--speed' in sys.argv else 1.2  # 최종 영상·음성·자막 배속
 SR = 44100
+sys.path.insert(0, str(Path(__file__).resolve().parent)); import bgm
+BGM = sys.argv[sys.argv.index('--bgm') + 1] if '--bgm' in sys.argv else 'none'  # none, pluck, lofi, bounce, musicbox (video/concept/bgm.py)
 CUTS = STORY['cuts']
 DUR = float(CUTS[-1]['t1'])
 GLOBAL_TEMPO = 1.22
@@ -105,8 +107,8 @@ def write_subs(cues, ass_path, srt_path):
     size = 54 if lang == 'ko' else 50
     head = (f'[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\nWrapStyle: 2\n\n[V4+ Styles]\n'
             'Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\n'
-            # 하단 중앙, 반투명 검은 상자(BorderStyle 3). 하단 400px은 릴스 UI에 가려지므로 비워 둔다
-            f'Style: Sub,Pretendard,{size},&H00FFFFFF,&H00FFFFFF,&H99000000,&H00000000,-1,0,0,0,100,100,0,0,3,16,0,2,90,90,400,1\n\n'
+            # 하단 중앙, 흰 글씨 + 진한 남색 외곽선(BorderStyle 1). 줄마다 상자를 그리지 않아 두 줄이 겹치지 않고 밝은 배경에서도 읽힌다. 하단 400px은 릴스 UI에 가려지므로 비워 둔다
+            f'Style: Sub,Pretendard,{size},&H00FFFFFF,&H00FFFFFF,&H0040201C,&H66000000,-1,0,0,0,100,100,0,0,1,9,3,2,90,90,400,1\n\n'
             '[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n')
     ass = head + ''.join(f'Dialogue: 0,{ts_ass(a)},{ts_ass(b)},Sub,,0,0,0,,{wrap2(t)}\n' for a, b, t in cues)
     Path(ass_path).write_text(ass, encoding='utf-8')
@@ -148,11 +150,11 @@ for i, (start, maxd, text) in enumerate(LINES):
     filters.append(f'[{i+2}:a]atempo={tempo:.3f},adelay={int(start*1000)}|{int(start*1000)},apad[v{i}]')
     labels.append(f'[v{i}]')
     print(f'{start:5.1f}s  {d:4.1f}s x{tempo:.2f}  {text}')
-music = tmp/'pad.wav'; pad_music(str(music))
+music = tmp/'bgm.wav'; bgm.write_wav(music, bgm.render(BGM, DUR))
 sfx = tmp/'sfx.wav'; sfx_track(str(sfx))
 inputs += ['-i', str(sfx)]
 fc = ';'.join(filters) + f';{"".join(labels)}amix=inputs={len(LINES)}:normalize=0:duration=longest[voice];' \
-     f'[1:a]volume=0.22[bg];[{len(LINES)+2}:a]volume=0.55[sfx];[voice][bg][sfx]amix=inputs=3:normalize=0:duration=longest,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,loudnorm=I=-16:TP=-2:LRA=11,aresample=44100,alimiter=limit=0.85,apad=whole_dur={DUR},atrim=0:{DUR},atempo={SPEED}[aout]'
+     f'[1:a]volume=0.4[bg];[{len(LINES)+2}:a]volume=0.28[sfx];[voice][bg][sfx]amix=inputs=3:normalize=0:duration=longest,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,loudnorm=I=-16:TP=-2:LRA=11,aresample=44100,alimiter=limit=0.85,apad=whole_dur={DUR},atrim=0:{DUR},atempo={SPEED}[aout]'
 ass, srt = tmp/'subs.ass', Path(dst).with_suffix('.srt')
 write_subs(cues_all, ass, srt)
 # .srt는 최종 영상 속도에 맞춰 시간을 줄인다(영상에 새긴 자막은 setpts로 같이 빨라진다)
