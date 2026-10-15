@@ -20,6 +20,7 @@ CUTS = STORY['cuts']
 DUR = float(CUTS[-1]['t1'])
 GLOBAL_TEMPO = 1.22
 # 컷마다 한 문장(say). 시작은 컷 시작 +0.2초, 길이는 컷 길이 -0.4초 안에 끝내야 한다
+# say=소리 내어 읽는 표기(영문 약어는 한글 발음), sub=자막에 보일 표기(없으면 say)
 LINES = [(c['t0'] + 0.2, c['t1'] - c['t0'] - 0.4, c['say']) for c in CUTS]
 
 def sfx_track(path):
@@ -142,7 +143,7 @@ for i, (start, maxd, text) in enumerate(LINES):
     gTTS(text, lang=lang).save(str(mp3))
     d = dur(str(mp3)); tempo = min(1.35, max(GLOBAL_TEMPO, d/maxd))
     if d/tempo > maxd + 0.4: print(f'경고: {i}번 문장이 {maxd}초를 넘어요 ({d/tempo:.1f}초)', file=sys.stderr)
-    cues_all += build_cues(start, d / tempo, text)
+    cues_all += build_cues(start, d / tempo, CUTS[i].get('sub', text))  # 자막은 화면용 표기(sub), 음성은 발음 표기(say)
     inputs += ['-i', str(mp3)]
     filters.append(f'[{i+2}:a]atempo={tempo:.3f},adelay={int(start*1000)}|{int(start*1000)},apad[v{i}]')
     labels.append(f'[v{i}]')
