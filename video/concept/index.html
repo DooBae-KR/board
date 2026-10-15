@@ -60,17 +60,23 @@ body{font-family:P,'WenQuanYi Zen Hei',sans-serif;color:var(--ink);word-break:ke
 <body><div id="stage"><div id="dots"></div><div id="bar"><i></i></div><div id="tag">AI · 개발 개념</div>
 <div id="host"><div id="bitwrap"><svg id="bit" viewBox="0 0 240 290" width="270" height="326">
  <g id="bitroot">
-  <g id="ant"><line x1="120" y1="64" x2="120" y2="30" stroke="#1c2040" stroke-width="8" stroke-linecap="round"/><circle cx="120" cy="22" r="13" fill="#12b886" stroke="#1c2040" stroke-width="6"/></g>
-  <ellipse cx="86" cy="268" rx="30" ry="14" fill="#ff9f1c" stroke="#1c2040" stroke-width="6"/><ellipse cx="154" cy="268" rx="30" ry="14" fill="#ff9f1c" stroke="#1c2040" stroke-width="6"/>
-  <g id="armL"><ellipse cx="32" cy="190" rx="20" ry="36" fill="#ffd23f" stroke="#1c2040" stroke-width="6"/></g>
-  <g id="armR"><ellipse cx="208" cy="190" rx="20" ry="36" fill="#ffd23f" stroke="#1c2040" stroke-width="6"/></g>
-  <ellipse cx="120" cy="170" rx="90" ry="100" fill="#ffd23f" stroke="#1c2040" stroke-width="7"/>
-  <ellipse cx="120" cy="198" rx="52" ry="56" fill="#fff1b8"/>
-  <circle cx="62" cy="176" r="16" fill="#ff8fa3" opacity=".85"/><circle cx="178" cy="176" r="16" fill="#ff8fa3" opacity=".85"/>
-  <circle id="eL" cx="90" cy="142" r="22" fill="#fff" stroke="#1c2040" stroke-width="6"/><circle id="eR" cx="150" cy="142" r="22" fill="#fff" stroke="#1c2040" stroke-width="6"/>
-  <circle id="pL" cx="90" cy="144" r="10" fill="#1c2040"/><circle id="pR" cx="150" cy="144" r="10" fill="#1c2040"/>
-  <path id="bL" d="M68 112 L112 112" stroke="#1c2040" stroke-width="7" stroke-linecap="round" fill="none"/><path id="bR" d="M128 112 L172 112" stroke="#1c2040" stroke-width="7" stroke-linecap="round" fill="none"/>
-  <ellipse id="mouth" cx="120" cy="200" rx="22" ry="6" fill="#8a1c2b" stroke="#1c2040" stroke-width="5"/>
+  <path id="tail" d="M176 248 C240 258 252 210 224 192 C242 236 206 236 176 230 Z" fill="#a98a78" stroke="#2b1d1d" stroke-width="6" stroke-linejoin="round"/>
+  <ellipse cx="86" cy="272" rx="28" ry="13" fill="#a98a78" stroke="#2b1d1d" stroke-width="6"/><ellipse cx="154" cy="272" rx="28" ry="13" fill="#a98a78" stroke="#2b1d1d" stroke-width="6"/>
+  <g id="armL"><ellipse cx="44" cy="208" rx="19" ry="32" fill="#a98a78" stroke="#2b1d1d" stroke-width="6"/></g>
+  <g id="armR"><ellipse cx="196" cy="208" rx="19" ry="32" fill="#a98a78" stroke="#2b1d1d" stroke-width="6"/></g>
+  <ellipse cx="120" cy="200" rx="78" ry="76" fill="#a98a78" stroke="#2b1d1d" stroke-width="6"/>
+  <ellipse cx="120" cy="218" rx="52" ry="50" fill="#fffaf3"/>
+  <circle cx="54" cy="82" r="15" fill="#a98a78" stroke="#2b1d1d" stroke-width="6"/><circle cx="186" cy="82" r="15" fill="#a98a78" stroke="#2b1d1d" stroke-width="6"/>
+  <ellipse cx="120" cy="120" rx="88" ry="70" fill="#a98a78" stroke="#2b1d1d" stroke-width="6"/>
+  <path d="M40 128 Q48 108 120 108 Q192 108 200 128 Q204 186 120 190 Q36 186 40 128 Z" fill="#fffaf3"/>
+  <g stroke="#ff8fa3" stroke-width="4" stroke-linecap="round"><ellipse cx="62" cy="146" rx="19" ry="13" fill="#ffb3bf" stroke="none"/><ellipse cx="178" cy="146" rx="19" ry="13" fill="#ffb3bf" stroke="none"/>
+   <path d="M54 142 L52 150 M62 141 L60 150 M70 142 L68 150 M170 142 L168 150 M178 141 L176 150 M186 142 L184 150" stroke="#ff7b93"/></g>
+  <g stroke="#2b1d1d" stroke-width="3.5" stroke-linecap="round"><path d="M34 146 L14 140"/><path d="M34 154 L14 156"/><path d="M206 146 L226 140"/><path d="M206 154 L226 156"/></g>
+  <ellipse id="eL" cx="84" cy="128" rx="11" ry="11" fill="#2b1d1d"/><ellipse id="eR" cx="156" cy="128" rx="11" ry="11" fill="#2b1d1d"/>
+  <circle id="pL" cx="80" cy="123" r="4" fill="#fff"/><circle id="pR" cx="152" cy="123" r="4" fill="#fff"/>
+  <path id="bL" d="M64 102 L104 102" stroke="#7a5c4a" stroke-width="5" stroke-linecap="round" fill="none"/><path id="bR" d="M136 102 L176 102" stroke="#7a5c4a" stroke-width="5" stroke-linecap="round" fill="none"/>
+  <path d="M112 142 Q120 137 128 142 Q125 148 120 148 Q115 148 112 142 Z" fill="#2b1d1d"/>
+  <ellipse id="mouth" cx="120" cy="158" rx="9" ry="4" fill="#d14d62" stroke="#2b1d1d" stroke-width="3.5"/>
  </g></svg></div><div id="say"></div></div>
 <div id="wipe"></div><div id="flash"></div></div>
 <script>
@@ -176,14 +182,14 @@ function setT(t){
  const s=(id,a,v)=>g(id).setAttribute(a,v);
  const bob=Math.sin(t*5)*5;
  s('bitroot','transform',`translate(0,${bob.toFixed(2)})`);
- s('ant','transform',`rotate(${(Math.sin(t*6)*9).toFixed(1)} 120 64)`);
- s('armL','transform',`rotate(${L('aL').toFixed(1)} 50 150)`);
- s('armR','transform',`rotate(${(L('aR')+(c.mood==='point'?Math.sin(tl*9)*6:0)).toFixed(1)} 190 150)`);
- s('mouth','rx',L('mx').toFixed(1));s('mouth','ry',my.toFixed(1));
- s('eL','r',L('e').toFixed(1));s('eR','r',L('e').toFixed(1));
- const lk=Math.sin(t*1.7)*4;s('pL','cx',(90+lk).toFixed(1));s('pR','cx',(150+lk).toFixed(1));
- const blink=(t%3.2)<.12?.15:1;s('pL','ry',(10*blink).toFixed(1));s('pR','ry',(10*blink).toFixed(1));
- s('bL','d',`M68 ${112+L('bl')+L('t')} L112 ${112+L('bl')-L('t')}`);s('bR','d',`M128 ${112+L('br')-L('t')} L172 ${112+L('br')+L('t')}`);
+ s('tail','transform',`rotate(${(Math.sin(t*5)*8).toFixed(1)} 176 236)`);
+ s('armL','transform',`rotate(${L('aL').toFixed(1)} 62 178)`);
+ s('armR','transform',`rotate(${(L('aR')+(c.mood==='point'?Math.sin(tl*9)*6:0)).toFixed(1)} 178 178)`);
+ s('mouth','rx',(L('mx')*.42).toFixed(1));s('mouth','ry',my.toFixed(1));
+ const blink=(t%3.2)<.12?.15:1,er=L('e')*.5;
+ s('eL','rx',er.toFixed(1));s('eR','rx',er.toFixed(1));s('eL','ry',(er*blink).toFixed(1));s('eR','ry',(er*blink).toFixed(1));
+ const lk=Math.sin(t*1.7)*2.5;s('pL','cx',(80+lk).toFixed(1));s('pR','cx',(152+lk).toFixed(1));s('pL','r',(4*blink).toFixed(1));s('pR','r',(4*blink).toFixed(1));
+ s('bL','d',`M64 ${102+L('bl')+L('t')} L104 ${102+L('bl')-L('t')}`);s('bR','d',`M136 ${102+L('br')-L('t')} L176 ${102+L('br')+L('t')}`);
  const bw=g('bitwrap');bw.style.transform=`scale(${(on===0?(.6+.4*back(seg(tl,0,.3))):1).toFixed(3)})`;bw.style.transformOrigin='50% 100%';
  const sy=g('say');if(sy.dataset.cut!==String(on)){sy.dataset.cut=String(on);sy.textContent=c.react||''}
  const sp=seg(tl,.1,.22);sy.style.opacity=clamp(sp*3);sy.style.transform=`scale(${(.7+.3*back(sp)).toFixed(3)})`;sy.style.transformOrigin='0% 80%';

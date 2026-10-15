@@ -35,12 +35,14 @@ def sfx_track(path):
     def noise(d, a=1.0, decay=8.0):
         n = int(SR * d); t = np.arange(n) / SR
         return a * rng.uniform(-1, 1, n) * np.exp(-decay * t / d)
+    def add(a, b):
+        n = max(len(a), len(b)); r = np.zeros(n); r[:len(a)] += a; r[:len(b)] += b; return r
     kinds = {
-        'thud': lambda: tone(110, 48, .28, .9, 5) + noise(.05, .25, 12),
+        'thud': lambda: add(tone(110, 48, .28, .9, 5), noise(.05, .25, 12)),
         'pop': lambda: tone(620, 980, .09, .6, 5),
         'tick': lambda: tone(1900, 1900, .035, .35, 6),
-        'ding': lambda: tone(1320, 1320, .55, .5, 5) + tone(1980, 1980, .55, .25, 6),
-        'crack': lambda: noise(.14, .6, 7) + tone(220, 90, .12, .4, 6),
+        'ding': lambda: add(tone(1320, 1320, .55, .5, 5), tone(1980, 1980, .55, .25, 6)),
+        'crack': lambda: add(noise(.14, .6, 7), tone(220, 90, .12, .4, 6)),
         'riser': lambda: tone(300, 1300, .9, .5, -1.5),
     }
     for c in CUTS:
