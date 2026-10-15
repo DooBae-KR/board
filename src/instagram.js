@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-const GRAPH = 'https://graph.instagram.com/v23.0';
+const GRAPH_DEFAULT = 'https://graph.instagram.com/v23.0';
+// 로컬 시험(scripts/dev-bot.js)에서는 IG_GRAPH_BASE로 모의 Graph 서버를 가리킨다. 운영에서는 설정하지 않는다
+const graphBase = () => process.env.IG_GRAPH_BASE || GRAPH_DEFAULT;
 
 export function verifySignature(rawBody, header, appSecret = process.env.APP_SECRET) {
   if (!appSecret) return true; // 로컬 테스트용
@@ -14,7 +16,7 @@ export function verifySignature(rawBody, header, appSecret = process.env.APP_SEC
 export function createApi({ igUserId, token }) {
   const getToken = typeof token === 'function' ? token : () => token; // 갱신되는 토큰 지원
   async function graph(path, { method = 'GET', body } = {}) {
-    const res = await fetch(`${GRAPH}/${path}`, {
+    const res = await fetch(`${graphBase()}/${path}`, {
       method,
       headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
       body: body && JSON.stringify(body),
@@ -38,7 +40,7 @@ export function createApi({ igUserId, token }) {
         const r = await graph(path);
         for (const c of r.data ?? []) if (!c.timestamp || Date.parse(c.timestamp) >= sinceMs) out.push(c);
         const oldest = r.data?.at(-1)?.timestamp;
-        path = r.paging?.next && !(oldest && Date.parse(oldest) < sinceMs) ? r.paging.next.replace(`${GRAPH}/`, '') : null;
+        path = r.paging?.next && !(oldest && Date.parse(oldest) < sinceMs) ? r.paging.next.replace(`${graphBase()}/`, '') : null;
       }
       return out;
     },

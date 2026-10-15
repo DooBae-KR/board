@@ -11,6 +11,8 @@
     "agents:sync": "node --env-file=.env scripts/agents-sync.js",
     "agents:check": "node scripts/agents-sync.js --dry-run",
     "story:check": "node scripts/check-story.js",
+    "dev:bot": "node scripts/dev-bot.js",
+    "dev:sim": "node scripts/sim-webhook.js",
     "harness:report": "node --env-file=.env scripts/harness-report.js",
     "motions:render": "node --env-file=.env scripts/render-motions.js"
   },
