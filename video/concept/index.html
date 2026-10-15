@@ -17,7 +17,7 @@ body{font-family:P,'WenQuanYi Zen Hei',sans-serif;color:var(--ink);word-break:ke
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
 #wipe{position:absolute;top:0;bottom:0;width:300px;left:-400px;background:linear-gradient(90deg,transparent,rgba(108,75,255,.55),transparent);pointer-events:none}
 .cut{position:absolute;inset:0;display:none}
-.safe{position:absolute;left:70px;right:100px;top:225px;bottom:830px;display:flex;flex-direction:column;justify-content:flex-start;gap:24px}
+.safe{position:absolute;left:70px;right:100px;top:225px;bottom:890px;display:flex;flex-direction:column;justify-content:flex-start;gap:24px}
 [data-a]{opacity:0}
 .kick{font-size:48px;font-weight:700;color:var(--vio)}
 .hero{font-size:132px;line-height:1.14;font-weight:700;letter-spacing:-.03em;display:flex;flex-wrap:wrap;gap:0 28px}
@@ -51,14 +51,14 @@ body{font-family:P,'WenQuanYi Zen Hei',sans-serif;color:var(--ink);word-break:ke
 .st{font-size:56px;font-weight:700;padding:14px 28px;border-radius:20px;background:#fff;border:4px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
 .pic{display:flex;align-items:center;justify-content:center;gap:48px;height:420px}.pic svg{height:420px;width:auto}
 /* 캐릭터 줄: 비트 + 말풍선 */
-#host{position:absolute;left:50px;right:90px;top:1110px;height:290px;display:flex;align-items:flex-end;gap:20px;z-index:3}
-#bitwrap{width:270px;height:326px;flex:none;margin-bottom:-14px}
-#say{position:relative;flex:1;margin-bottom:84px;font-size:52px;font-weight:700;background:#fff;border:4px solid var(--ink);border-radius:30px;padding:20px 28px;box-shadow:6px 6px 0 var(--ink);line-height:1.25}
+#host{position:absolute;left:50px;right:90px;top:1050px;height:350px;display:flex;align-items:flex-end;gap:20px;z-index:3}
+#bitwrap{width:340px;height:412px;flex:none;margin-bottom:-14px}
+#say{position:relative;flex:1;margin-bottom:130px;font-size:52px;font-weight:700;background:#fff;border:4px solid var(--ink);border-radius:30px;padding:20px 28px;box-shadow:6px 6px 0 var(--ink);line-height:1.25}
 #say:before{content:"";position:absolute;left:-24px;bottom:30px;width:0;height:0;border:16px solid transparent;border-right:24px solid var(--ink);border-left:0}
 #say:after{content:"";position:absolute;left:-14px;bottom:34px;width:0;height:0;border:12px solid transparent;border-right:18px solid #fff;border-left:0}
 </style></head>
 <body><div id="stage"><div id="dots"></div><div id="bar"><i></i></div><div id="tag">AI · 개발 개념</div>
-<div id="host"><div id="bitwrap"><svg id="bit" viewBox="0 0 240 290" width="270" height="326">
+<div id="host"><div id="bitwrap"><svg id="bit" viewBox="0 0 240 290" width="340" height="412">
  <g id="bitroot">
   <path id="tail" d="M176 248 C240 258 252 210 224 192 C242 236 206 236 176 230 Z" fill="#a98a78" stroke="#2b1d1d" stroke-width="6" stroke-linejoin="round"/>
   <ellipse cx="86" cy="272" rx="28" ry="13" fill="#a98a78" stroke="#2b1d1d" stroke-width="6"/><ellipse cx="154" cy="272" rx="28" ry="13" fill="#a98a78" stroke="#2b1d1d" stroke-width="6"/>
@@ -102,7 +102,7 @@ const MOODS={
 };
 function build(story,charSvg){
  // 마스코트 SVG는 video/concept/character/*.svg 파일을 render.mjs가 읽어 넘겨 준다(없으면 이 파일 안의 임시 그림을 쓴다)
- if(charSvg){const w=document.getElementById('bitwrap');w.innerHTML=charSvg;const sv=w.querySelector('svg');sv.id='bit';sv.setAttribute('width','270');sv.setAttribute('height','326')}
+ if(charSvg){const w=document.getElementById('bitwrap');w.innerHTML=charSvg;const sv=w.querySelector('svg');sv.id='bit';sv.setAttribute('width','340');sv.setAttribute('height','412')}
  S=story;END=story.cuts.at(-1).t1;
  const st=document.getElementById('stage');
  story.cuts.forEach((c,i)=>{
