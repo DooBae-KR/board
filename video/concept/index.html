@@ -51,8 +51,9 @@ body{font-family:P,'WenQuanYi Zen Hei',sans-serif;color:var(--ink);word-break:ke
 .st{font-size:56px;font-weight:700;padding:14px 28px;border-radius:20px;background:#fff;border:4px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
 .pic{display:flex;align-items:center;justify-content:center;gap:48px;height:420px}.pic svg{height:420px;width:auto}
 /* 캐릭터 줄: 비트 + 말풍선 */
-#host{position:absolute;left:50px;right:90px;top:1050px;height:350px;display:flex;align-items:flex-end;gap:20px;z-index:3}
-#bitwrap{width:340px;height:412px;flex:none;margin-bottom:-14px}
+#host{position:absolute;left:50px;right:90px;top:1030px;height:370px;display:flex;align-items:flex-end;gap:20px;z-index:3}
+#bitwrap{width:400px;height:370px;flex:none;margin-bottom:-6px;position:relative}
+#bitwrap img{position:absolute;left:0;bottom:0;width:100%;height:auto;opacity:0;transform-origin:50% 100%}
 #say{position:relative;flex:1;margin-bottom:130px;font-size:52px;font-weight:700;background:#fff;border:4px solid var(--ink);border-radius:30px;padding:20px 28px;box-shadow:6px 6px 0 var(--ink);line-height:1.25}
 #say:before{content:"";position:absolute;left:-24px;bottom:30px;width:0;height:0;border:16px solid transparent;border-right:24px solid var(--ink);border-left:0}
 #say:after{content:"";position:absolute;left:-14px;bottom:34px;width:0;height:0;border:12px solid transparent;border-right:18px solid #fff;border-left:0}
@@ -100,9 +101,12 @@ const MOODS={
  happy:{aL:-40,aR:40,bl:-12,br:-12,t:-5,e:22,mx:32,my:12},
  point:{aL:8,aR:-100,bl:-8,br:-8,t:2,e:23,mx:24,my:8},
 };
-function build(story,charSvg){
+function build(story,charSvg,sprites){
+ window.SPR=sprites&&Object.keys(sprites).length?sprites:null;
+ if(window.SPR){const w=document.getElementById('bitwrap');w.innerHTML=Object.entries(window.SPR).map(([m,u])=>`<img id="sp_${m}" src="${u}">`).join('')}
+ else
  // 마스코트 SVG는 video/concept/character/*.svg 파일을 render.mjs가 읽어 넘겨 준다(없으면 이 파일 안의 임시 그림을 쓴다)
- if(charSvg){const w=document.getElementById('bitwrap');w.innerHTML=charSvg;const sv=w.querySelector('svg');sv.id='bit';sv.setAttribute('width','340');sv.setAttribute('height','412')}
+ if(!window.SPR&&charSvg){const w=document.getElementById('bitwrap');w.innerHTML=charSvg;const sv=w.querySelector('svg');sv.id='bit';sv.setAttribute('width','340');sv.setAttribute('height','412')}
  S=story;END=story.cuts.at(-1).t1;
  const st=document.getElementById('stage');
  story.cuts.forEach((c,i)=>{
@@ -176,7 +180,13 @@ function setT(t){
  if(c.type==='call'){const q=seg(tl,1.0,.8);g(`out${on}`).textContent=q<=0?'…':c.output.replace(String(c.count),fmt(c.count*outC(q)))}
  if(c.type==='repo'){g(`st${on}`).textContent=fmt(c.stars*outC(seg(tl,.5,1.2)))}
  if(c.type==='cta'){const k=g(`kw${on}`);const pulse=tl>.7&&tl<1.9?1+.06*Math.sin((tl-.7)/1.2*Math.PI*4):1;k.style.transform+=` scale(${pulse.toFixed(4)})`}
- // 비트: 표정은 이전 컷에서 0.2초 동안 부드럽게 바뀐다. 말하는 동안 입이 움직이고 몸이 살짝 흔들린다
+ const curN=c.mood||'idle',prvN=(S.cuts[on-1]||c).mood||'idle',mm=seg(tl,0,.14);
+ if(window.SPR){
+  const speaking=tl>.15&&tl<dur-.2;
+  Object.keys(window.SPR).forEach(k=>{const im=g('sp_'+k);const o=k===curN?mm:(k===prvN&&prvN!==curN?1-mm:0);im.style.opacity=o.toFixed(3);
+   const bob=Math.sin(t*5)*5,sq=speaking?1+.03*Math.abs(Math.sin(tl*14)):1;
+   im.style.transform=`translateY(${bob.toFixed(1)}px) scale(${(1/sq).toFixed(4)},${sq.toFixed(4)}) rotate(${(Math.sin(t*3)*1.6).toFixed(2)}deg)`});
+ } else {
  const cur=MOODS[c.mood||'idle'],prv=MOODS[(S.cuts[on-1]||c).mood||'idle'],m=seg(tl,0,.2);
  const L=k=>lerp(prv[k],cur[k],m);
  const speaking=tl>.15&&tl<dur-.2;
@@ -192,6 +202,7 @@ function setT(t){
  s('eL','rx',er.toFixed(1));s('eR','rx',er.toFixed(1));s('eL','ry',(er*blink).toFixed(1));s('eR','ry',(er*blink).toFixed(1));
  const lk=Math.sin(t*1.7)*2.5;s('pL','cx',(80+lk).toFixed(1));s('pR','cx',(152+lk).toFixed(1));s('pL','r',(4*blink).toFixed(1));s('pR','r',(4*blink).toFixed(1));
  s('bL','d',`M64 ${102+L('bl')+L('t')} L104 ${102+L('bl')-L('t')}`);s('bR','d',`M136 ${102+L('br')-L('t')} L176 ${102+L('br')+L('t')}`);
+ }
  const bw=g('bitwrap');bw.style.transform=`scale(${(on===0?(.6+.4*back(seg(tl,0,.3))):1).toFixed(3)})`;bw.style.transformOrigin='50% 100%';
  const sy=g('say');if(sy.dataset.cut!==String(on)){sy.dataset.cut=String(on);sy.textContent=c.react||''}
  const sp=seg(tl,.1,.22);sy.style.opacity=clamp(sp*3);sy.style.transform=`scale(${(.7+.3*back(sp)).toFixed(3)})`;sy.style.transformOrigin='0% 80%';

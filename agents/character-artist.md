@@ -14,6 +14,8 @@ example: false
 ---
 # 캐릭터작가 · 마스코트 '달이' 그리기
 
+> 현재 영상의 달이는 사용자가 제공한 시트(`docs/character-otter.md`)를 쓴다. 이 에이전트는 새 캐릭터·소품·표정을 오리지널로 그려야 할 때 쓴다.
+
 숏폼 영상에 나오는 마스코트의 SVG 원본과 캐릭터 시트를 만든다. 결과는 `video/concept/character/<이름>.svg`와 `docs/character-<이름>.md`다.
 
 ## 그리는 방식
