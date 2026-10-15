@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """나레이션(gTTS) + 직접 합성한 배경음을 만들어 영상에 입힌다.
-사용: python3 video/concept/make-audio.py <stories/xxx.json> <입력.mp4> <출력.mp4> [--no-subs] [--speed 1.2] [--bgm none|pluck|lofi|bounce|musicbox]  (나레이션 + 합성 효과음 + 배경음 + 자막)  (자막을 영상에 새기고 같은 이름의 .srt도 만든다)
+사용: python3 video/concept/make-audio.py <stories/xxx.json> <입력.mp4> <출력.mp4> [--no-subs] [--speed 1.2] [--bgm lofi|none|pluck|bounce|musicbox] [--bgm-vol 0.10] [--sfx-vol 0.10]  (나레이션 + 합성 효과음 + 배경음 + 자막)  (자막을 영상에 새기고 같은 이름의 .srt도 만든다)
 필요: pip install gTTS numpy, ffmpeg. 배경음은 사인파로 합성한 것이라 저작권 문제가 없다.
 gTTS는 구글 번역의 비공식 음성이다. 수익화 채널에서는 약관과 음질을 확인하고, 필요하면 업로드 앱의 음성으로 바꾼다.
 """
@@ -17,7 +17,9 @@ SUBS = '--no-subs' not in sys.argv
 SPEED = float(sys.argv[sys.argv.index('--speed') + 1]) if '--speed' in sys.argv else 1.2  # 최종 영상·음성·자막 배속
 SR = 44100
 sys.path.insert(0, str(Path(__file__).resolve().parent)); import bgm
-BGM = sys.argv[sys.argv.index('--bgm') + 1] if '--bgm' in sys.argv else 'none'  # none, pluck, lofi, bounce, musicbox (video/concept/bgm.py)
+BGM = sys.argv[sys.argv.index('--bgm') + 1] if '--bgm' in sys.argv else 'lofi'  # none, pluck, lofi(기본), bounce, musicbox (video/concept/bgm.py)
+SFX_VOL = float(sys.argv[sys.argv.index('--sfx-vol') + 1]) if '--sfx-vol' in sys.argv else 0.10  # 효과음 크기(음성 대비)
+BGM_VOL = float(sys.argv[sys.argv.index('--bgm-vol') + 1]) if '--bgm-vol' in sys.argv else 0.10  # 배경음 크기(음성 대비). 작게 깔리는 정도
 CUTS = STORY['cuts']
 DUR = float(CUTS[-1]['t1'])
 GLOBAL_TEMPO = 1.22
@@ -154,7 +156,7 @@ music = tmp/'bgm.wav'; bgm.write_wav(music, bgm.render(BGM, DUR))
 sfx = tmp/'sfx.wav'; sfx_track(str(sfx))
 inputs += ['-i', str(sfx)]
 fc = ';'.join(filters) + f';{"".join(labels)}amix=inputs={len(LINES)}:normalize=0:duration=longest[voice];' \
-     f'[1:a]volume=0.4[bg];[{len(LINES)+2}:a]volume=0.28[sfx];[voice][bg][sfx]amix=inputs=3:normalize=0:duration=longest,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,loudnorm=I=-16:TP=-2:LRA=11,aresample=44100,alimiter=limit=0.85,apad=whole_dur={DUR},atrim=0:{DUR},atempo={SPEED}[aout]'
+     f'[1:a]volume={BGM_VOL}[bg];[{len(LINES)+2}:a]volume={SFX_VOL}[sfx];[voice][bg][sfx]amix=inputs=3:normalize=0:duration=longest,aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo,loudnorm=I=-16:TP=-2:LRA=11,aresample=44100,alimiter=limit=0.85,apad=whole_dur={DUR},atrim=0:{DUR},atempo={SPEED}[aout]'
 ass, srt = tmp/'subs.ass', Path(dst).with_suffix('.srt')
 write_subs(cues_all, ass, srt)
 # .srt는 최종 영상 속도에 맞춰 시간을 줄인다(영상에 새긴 자막은 setpts로 같이 빨라진다)
