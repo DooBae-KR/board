@@ -19,7 +19,19 @@ for (const file of files) {
   const str = (v, p) => { if (typeof v !== 'string' || !v.trim()) errs.push(`${p}: 비어 있음`); else if (/[<>]/.test(v.replace(/<\/?em>/g, ''))) errs.push(`${p}: 채우지 않은 자리표시자(<...>)`); };
   for (const k of ['id', 'lang', 'keyword']) str(s[k], k);
   str(s.problem?.k, 'problem.k'); str(s.problem?.h, 'problem.h');
-  str(s.why?.k, 'why.k'); if (s.why?.points?.length !== 3) errs.push('why.points: 3개여야 함'); else s.why.points.forEach((x, i) => str(x, `why.points[${i}]`));
+  str(s.why?.k, 'why.k');
+  if (s.why?.diagram) {
+    // 개념 애니메이션: 문제 줄(bad) → 해결 줄(good), 줄마다 칸 3개
+    const rows = s.why.diagram.rows;
+    if (!Array.isArray(rows) || rows.length !== 2) errs.push('why.diagram.rows: 2줄(문제, 해결)이어야 함');
+    else rows.forEach((r, i) => {
+      str(r?.label, `why.diagram.rows[${i}].label`); str(r?.result, `why.diagram.rows[${i}].result`);
+      if (r?.tone !== (i ? 'good' : 'bad')) errs.push(`why.diagram.rows[${i}].tone: ${i ? 'good' : 'bad'}여야 함`);
+      if (r?.nodes?.length !== 3) errs.push(`why.diagram.rows[${i}].nodes: 3칸이어야 함`);
+      else r.nodes.forEach((x, j) => { str(x, `why.diagram.rows[${i}].nodes[${j}]`); if (String(x).length > 8) errs.push(`why.diagram.rows[${i}].nodes[${j}]: 8자 이하(화면 폭)`); });
+    });
+  } else if (s.why?.points?.length !== 3) errs.push('why.points: 3개여야 함(또는 why.diagram)');
+  else s.why.points.forEach((x, i) => str(x, `why.points[${i}]`));
   for (const k of ['k', 'name', 'sub']) str(s.repo?.[k], `repo.${k}`);
   if (s.repo?.features?.length !== 3) errs.push('repo.features: 3개여야 함'); else s.repo.features.forEach((x, i) => str(x, `repo.features[${i}]`));
   if (!s.repo?.chips?.length) errs.push('repo.chips: 비어 있음'); else s.repo.chips.forEach((x, i) => str(x, `repo.chips[${i}]`));

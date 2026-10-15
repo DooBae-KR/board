@@ -38,7 +38,7 @@ body{font-family:P,'WenQuanYi Zen Hei',sans-serif;color:#fff;word-break:keep-all
 .step{font-size:68px;font-weight:700;display:flex;align-items:center;gap:26px}
 .step b{width:96px;height:96px;border-radius:50%;background:#7c5cff;display:flex;align-items:center;justify-content:center;font-size:56px;flex:none}
 .kw{display:inline-block;font-size:150px;font-weight:700;padding:10px 54px 24px;border-radius:44px;background:linear-gradient(135deg,#7c5cff,#22d3a6);color:#fff;align-self:flex-start;transform-origin:left center}
-.feats{display:flex;flex-direction:column;gap:18px}.feat{font-size:52px;font-weight:700;padding-left:28px;border-left:8px solid #22d3a6}.stars{font-size:190px;font-weight:700;color:#ffd166;line-height:1}.step.why{font-size:58px}.note{font-size:40px;color:#c9c9e8}
+.drow{display:flex;flex-direction:column;gap:22px;padding:40px 34px;border-radius:30px;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.14)}.drow.bad{border-color:rgba(255,107,129,.55)}.drow.good{border-color:rgba(34,211,166,.6)}.dlab{font-size:46px;font-weight:700;color:#c9c9e8}.dflow{display:flex;align-items:center;gap:10px}.dnode{flex:1;text-align:center;font-size:46px;font-weight:700;line-height:1.25;padding:34px 8px;border-radius:20px;background:#1b2240;border:2px solid #3b4670}.darrow{font-size:56px;color:#9b8cff;font-weight:700}.dres{align-self:flex-start;font-size:54px;font-weight:700;padding:12px 30px;border-radius:14px}.bad .dres{background:#ff6b81;color:#3a0a14}.good .dres{background:#22d3a6;color:#062b25}.feats{display:flex;flex-direction:column;gap:18px}.feat{font-size:52px;font-weight:700;padding-left:28px;border-left:8px solid #22d3a6}.stars{font-size:190px;font-weight:700;color:#ffd166;line-height:1}.step.why{font-size:58px}.note{font-size:40px;color:#c9c9e8}
 </style></head>
 <body><div id="stage"><div id="bar"><i></i></div></div>
 <script>
@@ -57,7 +57,13 @@ function init(story){
  const a=(s,d=.5)=>`data-s="${(s*.6).toFixed(2)}" data-d="${Math.min(d,.25)}"`;
  const {problem:p,why:w,repo:r,stars:t,cta:c}=story;
  sc(1,`<div class="kick" ${a(0)}>${esc(p.k)}</div><div class="h1" ${a(.25,.6)}>${p.h}</div>`);
- sc(2,`<div class="kick" ${a(0)}>${esc(w.k)}</div><div class="steps">${w.points.map((x,i)=>`<div class="step why" ${a(.6+i*1.1,.4)}><b>${i+1}</b>${esc(x)}</div>`).join('')}</div>`);
+ if (w.diagram) {
+  // 개념 애니메이션: 두 줄(문제 → 해결)의 흐름도. 칸이 차례로 나타나고 결과 배지가 붙는다. 시간은 장면 안의 초(압축하지 않음)
+  const row=(r,i)=>{const t0=i*2.6+.4;return `<div class="drow ${r.tone==='good'?'good':'bad'}" data-s="${(t0-.2).toFixed(2)}" data-d=".3"><div class="dlab" data-s="${t0.toFixed(2)}" data-d=".3">${esc(r.label)}</div><div class="dflow">${r.nodes.map((n,j)=>`${j?`<div class="darrow" data-s="${(t0+.3+j*.5).toFixed(2)}" data-d=".2">→</div>`:''}<div class="dnode" data-s="${(t0+.3+j*.5).toFixed(2)}" data-d=".3">${esc(n)}</div>`).join('')}</div><div class="dres" data-s="${(t0+.3+r.nodes.length*.5).toFixed(2)}" data-d=".3">${r.tone==='good'?'✓':'✗'} ${esc(r.result)}</div></div>`};
+  sc(2,`<div class="kick" ${a(0)}>${esc(w.k)}</div>${w.diagram.rows.map(row).join('')}`);
+} else {
+  sc(2,`<div class="kick" ${a(0)}>${esc(w.k)}</div><div class="steps">${w.points.map((x,i)=>`<div class="step why" ${a(.6+i*1.1,.4)}><b>${i+1}</b>${esc(x)}</div>`).join('')}</div>`);
+}
  const fs=r.name.length>18?84:r.name.length>12?110:150;
  sc(3,`<div class="kick" ${a(0)}>${esc(r.k)}</div><div class="big" style="font-size:${fs}px" ${a(.3,.7)}>${esc(r.name)}</div><div class="sub" ${a(1)}>${esc(r.sub)}</div><div class="chips">${r.chips.map((x,i)=>`<div class="chip ${i==0?'a':''}" ${a(1.6+i*.3,.4)}>${esc(x)}</div>`).join('')}</div><div class="feats">${r.features.map((x,i)=>`<div class="feat" ${a(3.2+i*1.4,.5)}>${esc(x)}</div>`).join('')}</div>`);
  sc(4,`<div class="kick" ${a(0)}>${esc(t.k)}</div><div class="stars" ${a(.3,.5)}>★ <span id="cnt">0</span></div><div class="sub" ${a(.6)}>${esc(t.label)} (${esc(t.asof)})</div><div class="cap" ${a(3,.6)}>${esc(t.verdict)}</div><div class="note" ${a(4.4,.5)}>${esc(t.caveat)}</div>`);
